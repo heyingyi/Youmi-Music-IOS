@@ -34,7 +34,7 @@ class AuthService {
         var request = URLRequest(url: finalURL)
         request.httpMethod = "GET"
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await network.requestWithCookie(url: finalURL, method: "GET")
         return try JSONDecoder().decode(T.self, from: data)
     }
 
@@ -152,7 +152,7 @@ class AuthService {
 
     /// 检查是否已登录
     func isLoggedIn() -> Bool {
-        return network.getSavedCookie() != nil
+        return KumoneMusicClient.shared.hasLoginCookie() || network.getSavedCookie() != nil
     }
 
     /// 恢复登录状态

@@ -2,9 +2,8 @@ import Foundation
 
 /// API 配置
 struct APIConfig {
-    /// NeteaseCloudMusicApi 服务器地址
-    /// 你需要自己部署或使用公共API服务
-    /// 部署方式参考: https://github.com/Binaryify/NeteaseCloudMusicApi
+    /// 兼容旧的 NeteaseCloudMusicApi 路径前缀。
+    /// 实际请求由 KumoneMusicClient 用 kumone weapi/eapi 直连 music.163.com。
     static var baseURL: String = "https://youmimusicapi.preview.aliyun-zeabur.cn"
     
     /// 设置自定义服务器地址

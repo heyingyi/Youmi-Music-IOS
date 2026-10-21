@@ -1,0 +1,44 @@
+name: Build Unsigned IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build unsigned iPhone app
+        working-directory: NeteaseMusic
+        run: |
+          xcodebuild \
+            -project NeteaseMusic.xcodeproj \
+            -scheme NeteaseMusic \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Package IPA
+        working-directory: NeteaseMusic
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/NeteaseMusic.app Payload/
+          ditto -c -k --sequesterRsrc --keepParent Payload Youmi-Music-unsigned.ipa
+          ls -lh Youmi-Music-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Youmi-Music-unsigned-ipa
+          path: NeteaseMusic/Youmi-Music-unsigned.ipa

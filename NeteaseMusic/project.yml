@@ -38,7 +38,7 @@ targets:
         NSLocalNetworkUsageDescription: "用于访问音乐服务"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.youmi.music
+        PRODUCT_BUNDLE_IDENTIFIER: com.youmi.neteasemusic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
@@ -46,6 +46,7 @@ targets:
         MARKETING_VERSION: 1.0
         PRODUCT_NAME: "$(TARGET_NAME)"
         SWIFT_EMIT_LOC_STRINGS: YES
+        SWIFT_OBJC_BRIDGING_HEADER: NeteaseMusic/NeteaseMusic-Bridging-Header.h
 
 schemes:
   NeteaseMusic:

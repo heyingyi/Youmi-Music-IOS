@@ -28,8 +28,8 @@ class MusicService {
     /// 预热网络连接（DNS解析 + TCP连接）
     func warmup() {
         Task(priority: .background) {
-            guard let url = URL(string: "\(APIConfig.baseURL)/") else { return }
-            _ = try? await URLSession.shared.data(from: url)
+            guard let url = URL(string: "\(APIConfig.baseURL)/personalized?limit=1") else { return }
+            _ = try? await network.requestWithCookie(url: url, method: "GET")
         }
     }
     

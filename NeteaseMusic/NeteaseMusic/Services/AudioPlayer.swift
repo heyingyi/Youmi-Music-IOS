@@ -1744,47 +1744,16 @@ class AudioPlayer: ObservableObject {
         print(" 请求音质: \(quality)")
         #endif
 
-        guard let url = URL(string: "\(sourceConfig.neteaseApiURL)?id=\(id)&type=json&level=\(quality)") else {
-            throw AudioPlayerError.invalidURL
-        }
-
-        #if DEBUG
-        print(" 完整API请求: \(url.absoluteString)")
-        #endif
-
-        let (data, _) = try await URLSession.shared.data(from: url)
-
-        #if DEBUG
-        if let responseString = String(data: data, encoding: .utf8) {
-            print(" API响应: \(responseString)")
-        }
-        #endif
-        
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let dataDict = json["data"] as? [String: Any],
-           let resultUrl = dataDict["url"] as? String,
+        if let resultUrl = try await KumoneMusicClient.shared.songURL(id: id, level: quality),
            !resultUrl.isEmpty {
-            if let level = dataDict["level"] as? String {
-                await MainActor.run {
-                    self.actualQuality = level
-                }
-                #if DEBUG
-                print(" 实际音质: \(level)")
-                #endif
+            await MainActor.run {
+                self.actualQuality = quality
             }
-            
             preloadedURLs[id] = resultUrl
             songCache.cacheUrl(songId: id, url: resultUrl, quality: quality)
-            
             return resultUrl
         }
-        
-        #if DEBUG
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            print(" 解析失败 - code: \(json["code"] ?? "unknown"), msg: \(json["msg"] ?? "unknown")")
-        }
-        #endif
-        
+
         throw AudioPlayerError.noAvailableSource
     }
     
@@ -1837,21 +1806,13 @@ class AudioPlayer: ObservableObject {
             guard let self = self else { return }
 
             do {
-                guard let url = URL(string: "\(self.sourceConfig.neteaseApiURL)?id=\(track.id)&type=json&level=\(quality)") else {
-                    return
-                }
+                if Task.isCancelled { return }
+
+                let resultUrl = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality)
 
                 if Task.isCancelled { return }
 
-                let (data, _) = try await URLSession.shared.data(from: url)
-                
-                if Task.isCancelled { return }
-                
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let dataDict = json["data"] as? [String: Any],
-                   let resultUrl = dataDict["url"] as? String,
-                   !resultUrl.isEmpty {
-                    
+                if let resultUrl, !resultUrl.isEmpty {
                     await MainActor.run {
                         self.preloadedURLs[track.id] = resultUrl
                     }

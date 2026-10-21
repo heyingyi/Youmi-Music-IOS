@@ -80,6 +80,8 @@
 		SLEEP001BUILD1111111111 /* SleepTimerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLEEP001FILE11111111111 /* SleepTimerManager.swift */; };
 		SLEEP002BUILD1111111111 /* SleepTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLEEP002FILE11111111111 /* SleepTimerView.swift */; };
 		STRANGERTHINGS001BUILD1 /* StrangerThingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = STRANGERTHINGS001FILE11 /* StrangerThingsComponents.swift */; };
+		BEANSAPI01BUILD11111111 /* NetEaseCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */; };
+		BEANSAPI02BUILD11111111 /* KumoneMusicClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -184,6 +186,9 @@
 		SLEEP001FILE11111111111 /* SleepTimerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerManager.swift; sourceTree = "<group>"; };
 		SLEEP002FILE11111111111 /* SleepTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerView.swift; sourceTree = "<group>"; };
 		STRANGERTHINGS001FILE11 /* StrangerThingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrangerThingsComponents.swift; sourceTree = "<group>"; };
+		BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetEaseCrypto.swift; sourceTree = "<group>"; };
+		BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KumoneMusicClient.swift; sourceTree = "<group>"; };
+		BEANSAPI03FILE111111111 /* NeteaseMusic-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NeteaseMusic-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -230,6 +235,8 @@
 				7FC9BBC32F2763A400A88EE4 /* WidgetDataService.swift */,
 				3FA469F456D5A5819EB82C10 /* APICache.swift */,
 				B24676E0A4BC078A430F7920 /* APIConfig.swift */,
+				BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */,
+				BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */,
 				A3B3F4CFF92096C444FB808F /* AudioPlayer.swift */,
 				2CA1B80932941136A7A71416 /* AuthService.swift */,
 				CACHEMGR001FILE11111111 /* CacheManager.swift */,
@@ -347,6 +354,7 @@
 			isa = PBXGroup;
 			children = (
 				7FC9BBE92F2768E500A88EE4 /* NeteaseMusic.entitlements */,
+				BEANSAPI03FILE111111111 /* NeteaseMusic-Bridging-Header.h */,
 				180C9A5D812FA1C83CE295F8 /* Assets.xcassets */,
 				7DB1D97FDE2D96E10EFB3FD9 /* Info.plist */,
 				6AB6E767E121DDE407A5D007 /* NeteaseMusicApp.swift */,
@@ -555,6 +563,8 @@
 				CACHEMGR001BUILD111111 /* CacheManager.swift in Sources */,
 				APPLEMUSIC01BUILD11111 /* AppleMusicService.swift in Sources */,
 				APPLEMUSIC02BUILD11111 /* AppleMusicView.swift in Sources */,
+				BEANSAPI01BUILD11111111 /* NetEaseCrypto.swift in Sources */,
+				BEANSAPI02BUILD11111111 /* KumoneMusicClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -658,6 +668,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "NeteaseMusic/NeteaseMusic-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -826,6 +837,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "NeteaseMusic/NeteaseMusic-Bridging-Header.h";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

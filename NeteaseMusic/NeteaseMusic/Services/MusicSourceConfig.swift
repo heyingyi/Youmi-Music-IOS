@@ -63,8 +63,8 @@ class MusicSourceConfig: ObservableObject {
         static let quality = "music_quality"
     }
     
-    // 网易云 API 地址
-    let neteaseApiURL = "https://netease-url.preview.aliyun-zeabur.cn/song"
+    // 兼容旧播放地址字段；实际取流由 KumoneMusicClient 直连网易云
+    let neteaseApiURL = "https://youmimusicapi.preview.aliyun-zeabur.cn/song/url"
     
     /// API Key
     @Published var apiKey: String {

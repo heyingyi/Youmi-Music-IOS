@@ -153,25 +153,15 @@ final class SongDownloadService: ObservableObject {
         let track = task.track
         
         do {
-            // 1. 获取歌曲 URL
             let quality = sourceConfig.quality.rawValue
-            guard let apiUrl = URL(string: "\(sourceConfig.apiURL)?id=\(track.id)&type=json&level=\(quality)") else {
-                throw DownloadError.invalidURL
-            }
-            
+
             #if DEBUG
             print("📥 开始下载: \(track.name)")
-            print("📥 API: \(apiUrl.absoluteString)")
             #endif
-            
+
             updateProgress(trackId: track.id, progress: 0.05)
-            
-            let (apiData, _) = try await urlSession.data(from: apiUrl)
-            
-            // 解析 API 响应
-            guard let json = try? JSONSerialization.jsonObject(with: apiData) as? [String: Any],
-                  let dataDict = json["data"] as? [String: Any],
-                  let audioUrlString = dataDict["url"] as? String,
+
+            guard let audioUrlString = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality),
                   !audioUrlString.isEmpty,
                   let audioUrl = URL(string: audioUrlString) else {
                 throw DownloadError.noAudioURL

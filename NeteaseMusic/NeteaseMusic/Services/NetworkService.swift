@@ -41,22 +41,28 @@ class NetworkService {
     /// 设置 Cookie
     func setCookie(_ cookie: String?) {
         self.cookie = cookie
-        // 持久化存储
-        if let cookie = cookie {
+        if let cookie = cookie, !cookie.isEmpty {
             UserDefaults.standard.set(cookie, forKey: "netease_cookie")
+            KumoneMusicClient.shared.importCookieString(cookie)
         } else {
             UserDefaults.standard.removeObject(forKey: "netease_cookie")
+            KumoneMusicClient.shared.clearCookies()
         }
     }
     
     /// 获取存储的 Cookie
     func getSavedCookie() -> String? {
+        let kumone = KumoneMusicClient.shared.cookieHeaderString()
+        if !kumone.isEmpty { return kumone }
         return UserDefaults.standard.string(forKey: "netease_cookie")
     }
     
     /// 加载已存储的 Cookie
     func loadSavedCookie() {
         self.cookie = getSavedCookie()
+        if let cookie = self.cookie, !cookie.isEmpty {
+            KumoneMusicClient.shared.importCookieString(cookie)
+        }
     }
     
     /// GET 请求
@@ -115,7 +121,7 @@ class NetworkService {
     /// 执行请求
     private func performRequest<T: Decodable>(_ request: URLRequest) async throws -> T {
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw NetworkError.noData
@@ -148,12 +154,18 @@ class NetworkService {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // 加载 Cookie
         let effectiveCookie = cookie ?? getSavedCookie()
         if let cookie = effectiveCookie {
             request.setValue(cookie, forHTTPHeaderField: "Cookie")
         }
         
+        return try await data(for: request)
+    }
+
+    private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        if let url = request.url, KumoneMusicClient.shared.shouldHandle(url: url) {
+            return try await KumoneMusicClient.shared.proxy(url: url)
+        }
         return try await session.data(for: request)
     }
 }
