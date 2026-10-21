@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 外观模式
 enum AppearanceMode: String, CaseIterable, Identifiable {
@@ -161,6 +162,32 @@ class ThemeManager: ObservableObject {
     }
     
     @Published private(set) var currentTheme: AppTheme = StandardTheme()
+
+    @Published var liquidGlassEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(liquidGlassEnabled, forKey: "liquid_glass_enabled")
+        }
+    }
+
+    @Published var customBackgroundEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(customBackgroundEnabled, forKey: "custom_background_enabled")
+        }
+    }
+
+    @Published var backgroundOpacity: Double = 0.55 {
+        didSet {
+            UserDefaults.standard.set(backgroundOpacity, forKey: "custom_background_opacity")
+        }
+    }
+
+    @Published var backgroundFrost: Double = 0.35 {
+        didSet {
+            UserDefaults.standard.set(backgroundFrost, forKey: "custom_background_frost")
+        }
+    }
+
+    @Published var customBackgroundImage: UIImage? = nil
     
     init() {
         // 加载外观模式
@@ -174,6 +201,20 @@ class ThemeManager: ObservableObject {
            let style = ThemeStyle(rawValue: styleRaw) {
             self.themeStyle = style
         }
+
+        if UserDefaults.standard.object(forKey: "liquid_glass_enabled") != nil {
+            liquidGlassEnabled = UserDefaults.standard.bool(forKey: "liquid_glass_enabled")
+        }
+        customBackgroundEnabled = UserDefaults.standard.bool(forKey: "custom_background_enabled")
+        let savedOpacity = UserDefaults.standard.double(forKey: "custom_background_opacity")
+        if savedOpacity > 0 {
+            backgroundOpacity = min(max(savedOpacity, 0.15), 1.0)
+        }
+        let savedFrost = UserDefaults.standard.double(forKey: "custom_background_frost")
+        if UserDefaults.standard.object(forKey: "custom_background_frost") != nil {
+            backgroundFrost = min(max(savedFrost, 0), 1.0)
+        }
+        customBackgroundImage = Self.loadBackgroundImage()
         
         updateCurrentTheme()
     }
@@ -207,6 +248,47 @@ class ThemeManager: ObservableObject {
     var backgroundColor: Color { currentTheme.primaryBackground }
     var cardBackgroundColor: Color { currentTheme.cardBackground }
     var placeholderBackground: Color { isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.systemGray5) }
+
+    func setCustomBackground(_ image: UIImage) {
+        customBackgroundImage = image
+        customBackgroundEnabled = true
+        Self.saveBackgroundImage(image)
+    }
+
+    func clearCustomBackground() {
+        customBackgroundImage = nil
+        customBackgroundEnabled = false
+        try? FileManager.default.removeItem(at: Self.backgroundFileURL)
+    }
+
+    private static var backgroundFileURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("custom_app_background.jpg")
+    }
+
+    private static func saveBackgroundImage(_ image: UIImage) {
+        let resized = image.preparedForBackground()
+        guard let data = resized.jpegData(compressionQuality: 0.82) else { return }
+        try? data.write(to: backgroundFileURL, options: .atomic)
+    }
+
+    private static func loadBackgroundImage() -> UIImage? {
+        guard let data = try? Data(contentsOf: backgroundFileURL) else { return nil }
+        return UIImage(data: data)
+    }
+}
+
+private extension UIImage {
+    func preparedForBackground(maxDimension: CGFloat = 1800) -> UIImage {
+        let longest = max(size.width, size.height)
+        guard longest > maxDimension else { return self }
+        let scale = maxDimension / longest
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
 }
 
 // MARK: - 主题环境键

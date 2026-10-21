@@ -480,6 +480,8 @@ struct StrangerThingsBackground: View {
                 }
             }
             
+            CustomWallpaperLayer()
+
             // 粒子效果
             if themeManager.enableParticles {
                 UpsideDownParticles()

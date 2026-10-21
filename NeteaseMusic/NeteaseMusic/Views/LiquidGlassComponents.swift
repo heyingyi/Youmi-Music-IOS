@@ -27,33 +27,87 @@ struct LiquidGlassTheme {
 
 // MARK: - iOS 26 原生液态玻璃修饰符
 extension View {
-    /// 应用 iOS 26 原生液态玻璃效果（圆角矩形）
+    /// 应用液态玻璃效果（圆角矩形）。iOS 26 用原生 API，iOS 17 用毛玻璃回退。
     @ViewBuilder
     func glassEffectRounded(cornerRadius: CGFloat = 20) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius))
-        } else {
-            self.background(LiquidGlassFallbackBackground(cornerRadius: cornerRadius))
-        }
+        modifier(CompatibleGlassEffect(shape: .rounded(cornerRadius)))
     }
 
-    /// 应用 iOS 26 原生液态玻璃效果（圆形）
+    /// 应用液态玻璃效果（圆形）
     @ViewBuilder
     func glassEffectCircular() -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: Circle())
-        } else {
-            self.background(LiquidGlassFallbackCircleBackground())
+        modifier(CompatibleGlassEffect(shape: .circle))
+    }
+
+    /// 应用液态玻璃效果（胶囊）
+    @ViewBuilder
+    func glassEffectCapsule() -> some View {
+        modifier(CompatibleGlassEffect(shape: .capsule))
+    }
+}
+
+private enum CompatibleGlassShape {
+    case rounded(CGFloat)
+    case circle
+    case capsule
+}
+
+private struct CompatibleGlassEffect: ViewModifier {
+    let shape: CompatibleGlassShape
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    func body(content: Content) -> some View {
+        Group {
+            if themeManager.liquidGlassEnabled {
+                if #available(iOS 26.0, *) {
+                    nativeGlass(content)
+                } else {
+                    content.background(fallbackBackground)
+                }
+            } else {
+                content.background(solidBackground)
+            }
         }
     }
 
-    /// 应用 iOS 26 原生液态玻璃效果（胶囊）
     @ViewBuilder
-    func glassEffectCapsule() -> some View {
+    private func nativeGlass(_ content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: Capsule())
+            switch shape {
+            case .rounded(let radius):
+                content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
+            case .circle:
+                content.glassEffect(.regular, in: Circle())
+            case .capsule:
+                content.glassEffect(.regular, in: Capsule())
+            }
         } else {
-            self.background(LiquidGlassFallbackCapsuleBackground())
+            content.background(fallbackBackground)
+        }
+    }
+
+    @ViewBuilder
+    private var fallbackBackground: some View {
+        switch shape {
+        case .rounded(let radius):
+            LiquidGlassFallbackBackground(cornerRadius: radius)
+        case .circle:
+            LiquidGlassFallbackCircleBackground()
+        case .capsule:
+            LiquidGlassFallbackCapsuleBackground()
+        }
+    }
+
+    @ViewBuilder
+    private var solidBackground: some View {
+        switch shape {
+        case .rounded(let radius):
+            RoundedRectangle(cornerRadius: radius)
+                .fill(Color(.secondarySystemBackground).opacity(0.96))
+        case .circle:
+            Circle().fill(Color(.secondarySystemBackground).opacity(0.96))
+        case .capsule:
+            Capsule().fill(Color(.secondarySystemBackground).opacity(0.96))
         }
     }
 }
@@ -374,16 +428,14 @@ struct LiquidGlassButtonStyle: ButtonStyle {
 struct LiquidGlassBackground: View {
     var colors: [Color] = [.pink.opacity(0.12), .purple.opacity(0.1), .blue.opacity(0.08)]
     @Environment(\.colorScheme) var colorScheme
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
         ZStack {
-            // 基础背景
             Color(colorScheme == .dark ? .systemBackground : .systemGroupedBackground)
 
-            // 渐变光晕
             GeometryReader { geo in
                 ZStack {
-                    // 顶部光晕
                     Ellipse()
                         .fill(
                             RadialGradient(
@@ -396,7 +448,6 @@ struct LiquidGlassBackground: View {
                         .frame(width: geo.size.width * 1.6, height: geo.size.height * 0.55)
                         .offset(x: -geo.size.width * 0.25, y: -geo.size.height * 0.12)
 
-                    // 右侧光晕
                     Ellipse()
                         .fill(
                             RadialGradient(
@@ -409,7 +460,6 @@ struct LiquidGlassBackground: View {
                         .frame(width: geo.size.width * 1.1, height: geo.size.height * 0.45)
                         .offset(x: geo.size.width * 0.35, y: geo.size.height * 0.28)
 
-                    // 底部光晕
                     Ellipse()
                         .fill(
                             RadialGradient(
@@ -423,8 +473,39 @@ struct LiquidGlassBackground: View {
                         .offset(x: -geo.size.width * 0.1, y: geo.size.height * 0.58)
                 }
             }
+
+            CustomWallpaperLayer()
         }
         .ignoresSafeArea()
+    }
+}
+
+struct CustomWallpaperLayer: View {
+    @ObservedObject private var themeManager = ThemeManager.shared
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        if themeManager.customBackgroundEnabled, let image = themeManager.customBackgroundImage {
+            GeometryReader { geo in
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                        .opacity(themeManager.backgroundOpacity)
+
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(themeManager.backgroundFrost)
+
+                    Color(colorScheme == .dark ? .black : .white)
+                        .opacity(0.08 + themeManager.backgroundFrost * 0.12)
+                }
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        }
     }
 }
 

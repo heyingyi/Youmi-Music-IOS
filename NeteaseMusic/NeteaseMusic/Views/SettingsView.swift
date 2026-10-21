@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
 
 // MARK: - Apple Music 液态玻璃风格设置页
 struct SettingsView: View {
@@ -16,6 +18,7 @@ struct SettingsView: View {
     @State private var showClearCacheAlert = false
     @State private var selectedCacheType: CacheType = .all
     @State private var clearCacheSuccess = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
 
     var body: some View {
         ZStack {
@@ -32,15 +35,16 @@ struct SettingsView: View {
                 
                 // 缓存管理
                 liquidGlassCacheSection
-
-                // 关于信息
-                liquidGlassAboutSection
             }
             .padding(.bottom, 120)
         }
         .background(themedBackground)
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.large)
+        .onChangeCompat(of: selectedPhotoItem) { _, newItem in
+            guard let newItem else { return }
+            Task { await loadPickedBackground(from: newItem) }
+        }
         .alert(selectedCacheType == .downloaded ? "删除所有下载" : "清除缓存", isPresented: $showClearCacheAlert) {
             Button("取消", role: .cancel) { }
             Button("确定", role: .destructive) {
@@ -350,22 +354,196 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
+                    .padding(.bottom, 8)
                 }
+
+                themedDivider
+                    .padding(.horizontal, 16)
+
+                appearanceToggleRow(
+                    title: "液态玻璃",
+                    subtitle: "卡片毛玻璃效果，iOS 17.3.1 可用",
+                    icon: "drop.fill",
+                    iconColor: .cyan,
+                    isOn: $themeManager.liquidGlassEnabled
+                )
+
+                themedDivider
+                    .padding(.horizontal, 16)
+
+                customBackgroundControls
+                    .padding(.bottom, 8)
             }
         }
     }
 
-    // MARK: - 液态玻璃关于信息
-    private var liquidGlassAboutSection: some View {
-        themedSection(title: "关于") {
-            VStack(spacing: 0) {
-                LiquidGlassSettingsRow(title: "版本", value: "2.0.0")
-                
-                themedDivider
-                
-                LiquidGlassSettingsRow(title: "开发者", value: "Youmi Music")
+    @ViewBuilder
+    private func appearanceToggleRow(
+        title: String,
+        subtitle: String,
+        icon: String,
+        iconColor: Color,
+        isOn: Binding<Bool>
+    ) -> some View {
+        switch themeManager.themeStyle {
+        case .standard:
+            LiquidGlassToggleRow(
+                title: title,
+                subtitle: subtitle,
+                icon: icon,
+                iconColor: iconColor,
+                isOn: isOn
+            )
+        case .strangerThings:
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(iconColor)
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white)
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.5))
+                        .lineLimit(2)
+                }
+                Spacer()
+                Toggle("", isOn: isOn)
+                    .labelsHidden()
+                    .tint(Color(red: 1.0, green: 0.2, blue: 0.3))
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private var customBackgroundControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            appearanceToggleRow(
+                title: "自定义背景",
+                subtitle: "用相册图片作为页面背景",
+                icon: "photo.fill",
+                iconColor: .pink,
+                isOn: $themeManager.customBackgroundEnabled
+            )
+
+            HStack(spacing: 12) {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(themeManager.customBackgroundImage == nil ? "选择图片" : "更换图片")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(themeManager.isStrangerTheme ? .white : .primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(themeManager.isStrangerTheme ? Color.white.opacity(0.12) : Color(.tertiarySystemFill))
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if themeManager.customBackgroundImage != nil {
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            themeManager.clearCustomBackground()
+                        }
+                    } label: {
+                        Text("清除")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.red.opacity(0.12))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if let preview = themeManager.customBackgroundImage {
+                Image(uiImage: preview)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 92)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 16)
+            }
+
+            if themeManager.customBackgroundEnabled, themeManager.customBackgroundImage != nil {
+                appearanceSliderRow(
+                    title: "背景透明度",
+                    value: $themeManager.backgroundOpacity,
+                    range: 0.15...1.0,
+                    icon: "circle.lefthalf.filled",
+                    iconColor: .indigo
+                )
+                appearanceSliderRow(
+                    title: "磨砂效果",
+                    value: $themeManager.backgroundFrost,
+                    range: 0...1.0,
+                    icon: "aqi.medium",
+                    iconColor: .teal
+                )
+            }
+        }
+    }
+
+    private func appearanceSliderRow(
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        icon: String,
+        iconColor: Color
+    ) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(iconColor)
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(themeTextColor)
+                Spacer()
+                Text("\(Int(value.wrappedValue * 100))%")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(themeManager.isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .purple)
+                    .frame(width: 50, alignment: .trailing)
+            }
+            Slider(value: value, in: range, step: 0.01)
+                .tint(themeManager.isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .purple)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private func loadPickedBackground(from item: PhotosPickerItem) async {
+        let image = await PickedBackgroundImage.load(from: item)
+        await MainActor.run {
+            if let image {
+                themeManager.setCustomBackground(image)
+            }
+            selectedPhotoItem = nil
         }
     }
     
@@ -876,6 +1054,30 @@ struct ThemeStyleCard: View {
             .frame(width: 110)
         }
         .buttonStyle(LiquidGlassButtonStyle())
+    }
+}
+
+private struct PickedBackgroundImage: Transferable {
+    let image: UIImage
+
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(importedContentType: .image) { data in
+            guard let image = UIImage(data: data) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return PickedBackgroundImage(image: image)
+        }
+    }
+
+    static func load(from item: PhotosPickerItem) async -> UIImage? {
+        if let picked = try? await item.loadTransferable(type: PickedBackgroundImage.self) {
+            return picked.image
+        }
+        if let data = try? await item.loadTransferable(type: Data.self),
+           let image = UIImage(data: data) {
+            return image
+        }
+        return nil
     }
 }
 

@@ -320,15 +320,15 @@ struct MiniPlayerView: View {
     // MARK: - 迷你播放器背景
     @ViewBuilder
     private var miniPlayerBackground: some View {
-        if #available(iOS 26.0, *), themeManager.themeStyle != .strangerThings {
+        if themeManager.themeStyle == .strangerThings {
+            ThemedMiniPlayerBackground()
+                .allowsHitTesting(false)
+        } else if themeManager.liquidGlassEnabled, #available(iOS 26.0, *) {
             RoundedRectangle(cornerRadius: 22)
                 .fill(.clear)
                 .glassEffect(.regular)
                 .allowsHitTesting(false)
-        } else if themeManager.themeStyle == .strangerThings {
-            ThemedMiniPlayerBackground()
-                .allowsHitTesting(false)
-        } else {
+        } else if themeManager.liquidGlassEnabled {
             RoundedRectangle(cornerRadius: 22)
                 .fill(.ultraThinMaterial)
                 .overlay(
@@ -336,6 +336,11 @@ struct MiniPlayerView: View {
                         .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
                 )
                 .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
+                .allowsHitTesting(false)
+        } else {
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color(.secondarySystemBackground).opacity(0.96))
+                .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 8)
                 .allowsHitTesting(false)
         }
     }
