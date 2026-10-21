@@ -35,9 +35,6 @@ struct SettingsView: View {
 
                 // 关于信息
                 liquidGlassAboutSection
-
-                // 赞助支持
-                liquidGlassSponsorSection
             }
             .padding(.bottom, 120)
         }
@@ -506,60 +503,6 @@ struct SettingsView: View {
                     .disabled(cacheManager.isClearing)
                 }
             }
-        }
-    }
-    
-    // MARK: - 赞助支持
-    @State private var selectedPayment = 0
-
-    private var liquidGlassSponsorSection: some View {
-        themedSection(title: "赞助支持") {
-            VStack(spacing: 16) {
-                // 说明文字
-                VStack(spacing: 8) {
-                    Text("不强求，自愿支持 ❤️")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(themeTextColor)
-
-                    Text("如果 Youmi 对你有帮助，可以请开发者喝一杯咖啡")
-                        .font(.system(size: 14))
-                        .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.7) : .secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 16)
-
-                // 支付方式切换
-                Picker("支付方式", selection: $selectedPayment) {
-                    Text("微信").tag(0)
-                    Text("支付宝").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 40)
-
-                // 赞赏码图片
-                if selectedPayment == 0 {
-                    Image("SponsorQRCode")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 200, height: 200)
-                        .cornerRadius(12)
-                        .shadow(color: themeManager.themeStyle == .strangerThings ? Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.3) : .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                } else {
-                    Image("AlipayQR")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 200, height: 200)
-                        .cornerRadius(12)
-                        .shadow(color: themeManager.themeStyle == .strangerThings ? Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.3) : .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                }
-
-                // 提示文字
-                Text(selectedPayment == 0 ? "微信扫码赞赏" : "支付宝扫码赞赏")
-                    .font(.system(size: 13))
-                    .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.6) : .secondary)
-                    .padding(.bottom, 16)
-            }
-            .frame(maxWidth: .infinity)
         }
     }
 }
