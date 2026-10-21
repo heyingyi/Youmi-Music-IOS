@@ -8,10 +8,32 @@ permissions:
 
 jobs:
   build-ipa:
-    runs-on: macos-15
+    runs-on: xcode-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Select Xcode 26 toolchain
+        run: |
+          chosen=""
+          for app in $(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -Vr); do
+            if [ -d "$app/Contents/Developer" ]; then
+              chosen="$app"
+              break
+            fi
+          done
+          if [ -z "$chosen" ]; then
+            for app in $(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -Vr); do
+              if [ -d "$app/Contents/Developer" ]; then
+                chosen="$app"
+                break
+              fi
+            done
+          fi
+          echo "Using $chosen"
+          sudo xcode-select -s "$chosen"
+          xcodebuild -version
+          xcodebuild -showsdks
 
       - name: Build unsigned iPhone app
         working-directory: NeteaseMusic
