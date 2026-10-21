@@ -27,7 +27,7 @@ targets:
     info:
       path: NeteaseMusic/Info.plist
       properties:
-        CFBundleDisplayName: Youmi
+        CFBundleDisplayName: 网易云音乐
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
