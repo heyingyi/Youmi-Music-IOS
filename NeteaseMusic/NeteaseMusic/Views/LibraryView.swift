@@ -171,20 +171,6 @@ struct LibraryView: View {
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12)
                 ], spacing: 16) {
-                    // 我的歌单
-                    NavigationLink {
-                        CloudPlaylistsView(playlists: cloudPlaylists.filter { !$0.isLikedPlaylist })
-                    } label: {
-                        CloudFeatureCard(
-                            icon: "music.note.list",
-                            iconColor: .red,
-                            title: "我的歌单",
-                            count: cloudPlaylists.filter { !$0.isLikedPlaylist }.count
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    
-                    // 喜欢的音乐
                     NavigationLink {
                         if let likedPlaylist = cloudPlaylists.first(where: { $0.isLikedPlaylist }) {
                             CloudLikedSongsView(playlistId: likedPlaylist.id, songCount: likedSongIds.count)
@@ -195,6 +181,18 @@ struct LibraryView: View {
                             iconColor: .pink,
                             title: "喜欢的音乐",
                             count: likedSongIds.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        CloudPlaylistsView(playlists: cloudPlaylists.filter { !$0.isLikedPlaylist })
+                    } label: {
+                        CloudFeatureCard(
+                            icon: "music.note.list",
+                            iconColor: .red,
+                            title: "我的歌单",
+                            count: cloudPlaylists.filter { !$0.isLikedPlaylist }.count
                         )
                     }
                     .buttonStyle(.plain)
@@ -236,12 +234,15 @@ struct LibraryView: View {
         VStack(spacing: 20) {
             // 本地音乐库
             LiquidGlassSection(title: "本地音乐库") {
-                VStack(spacing: 0) {
-                    // 本地歌曲
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12)
+                ], spacing: 16) {
                     NavigationLink {
                         LocalMusicView()
                     } label: {
-                        LiquidGlassLibraryRow(
+                        CloudFeatureCard(
                             icon: "music.note.house.fill",
                             iconColor: .green,
                             title: "本地歌曲",
@@ -249,14 +250,11 @@ struct LibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    
-                    LiquidGlassDivider()
-                    
-                    // 我喜欢的音乐
+
                     NavigationLink {
                         FavoritesView()
                     } label: {
-                        LiquidGlassLibraryRow(
+                        CloudFeatureCard(
                             icon: "heart.fill",
                             iconColor: .red,
                             title: "我喜欢的音乐",
@@ -265,13 +263,10 @@ struct LibraryView: View {
                     }
                     .buttonStyle(.plain)
 
-                    LiquidGlassDivider()
-
-                    // 最近播放
                     NavigationLink {
                         PlayHistoryView()
                     } label: {
-                        LiquidGlassLibraryRow(
+                        CloudFeatureCard(
                             icon: "clock.fill",
                             iconColor: .orange,
                             title: "最近播放",
@@ -280,6 +275,8 @@ struct LibraryView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 4)
+                .padding(.vertical, 8)
             }
         }
     }
@@ -584,6 +581,7 @@ struct LiquidGlassDivider: View {
 struct CloudPlaylistsView: View {
     let playlists: [CloudPlaylist]
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
         ScrollView {
@@ -599,7 +597,7 @@ struct CloudPlaylistsView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(ThemedBackground().environmentObject(themeManager))
         .navigationTitle("我的歌单")
     }
 }
@@ -682,7 +680,7 @@ struct CloudPlaylistDetailView: View {
             }
             .padding(.bottom, 100)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(ThemedBackground().environmentObject(ThemeManager.shared))
         .navigationTitle(playlist.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadTracks() }
@@ -851,6 +849,7 @@ struct CloudLikedSongsView: View {
     let songCount: Int
     @StateObject private var likedStore: LikedSongsStore = .shared
     @ObservedObject private var audioPlayer = AudioPlayer.shared
+    @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
         ScrollView {
@@ -884,7 +883,7 @@ struct CloudLikedSongsView: View {
             }
             .padding(.bottom, 100)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(ThemedBackground().environmentObject(themeManager))
         .navigationTitle("喜欢的音乐")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -952,6 +951,7 @@ struct CloudLikedSongsView: View {
 // MARK: - 收藏的专辑页面
 struct CloudAlbumsView: View {
     let albums: [CloudAlbum]
+    @EnvironmentObject var themeManager: ThemeManager
     
     let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -972,7 +972,7 @@ struct CloudAlbumsView: View {
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .background(ThemedBackground().environmentObject(themeManager))
         .navigationTitle("收藏的专辑")
     }
 }
@@ -1048,7 +1048,7 @@ struct CloudAlbumDetailView: View {
             }
             .padding(.bottom, 100)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(ThemedBackground().environmentObject(ThemeManager.shared))
         .navigationTitle(album.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadTracks() }

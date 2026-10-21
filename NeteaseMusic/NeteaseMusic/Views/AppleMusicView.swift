@@ -55,12 +55,12 @@ struct AppleMusicView: View {
     @State private var showAlbumSortSheet = false
     
     private var isStrangerTheme: Bool { themeManager.themeStyle == .strangerThings }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemBackground) }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .pink }
     
     var body: some View {
         ZStack {
-            backgroundColor.ignoresSafeArea()
+            ThemedBackground()
+                .environmentObject(themeManager)
             
             if !service.isAuthorized {
                 authorizationView
@@ -614,11 +614,11 @@ struct AppleMusicAlbumDetailView: View {
     
     private var isStrangerTheme: Bool { themeManager.themeStyle == .strangerThings }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .pink }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemBackground) }
     
     var body: some View {
         ZStack {
-            backgroundColor.ignoresSafeArea()
+            ThemedBackground()
+                .environmentObject(themeManager)
             
             if isLoading {
                 ProgressView("加载中...")

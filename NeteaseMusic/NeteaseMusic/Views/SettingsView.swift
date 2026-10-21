@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var selectedCacheType: CacheType = .all
     @State private var clearCacheSuccess = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var showBackgroundPicker = false
 
     var body: some View {
         ZStack {
@@ -41,6 +42,7 @@ struct SettingsView: View {
         .background(themedBackground)
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.large)
+        .photosPicker(isPresented: $showBackgroundPicker, selection: $selectedPhotoItem, matching: .images)
         .onChangeCompat(of: selectedPhotoItem) { _, newItem in
             guard let newItem else { return }
             Task { await loadPickedBackground(from: newItem) }
@@ -417,9 +419,11 @@ struct SettingsView: View {
                 Toggle("", isOn: isOn)
                     .labelsHidden()
                     .tint(Color(red: 1.0, green: 0.2, blue: 0.3))
+                    .zIndex(1)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
     }
 
@@ -434,7 +438,9 @@ struct SettingsView: View {
             )
 
             HStack(spacing: 12) {
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                Button {
+                    showBackgroundPicker = true
+                } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .semibold))
@@ -449,7 +455,7 @@ struct SettingsView: View {
                             .fill(themeManager.isStrangerTheme ? Color.white.opacity(0.12) : Color(.tertiarySystemFill))
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
 
                 if themeManager.customBackgroundImage != nil {
                     Button {
@@ -467,7 +473,8 @@ struct SettingsView: View {
                                     .fill(Color.red.opacity(0.12))
                             )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .zIndex(2)
                 }
             }
             .padding(.horizontal, 16)
@@ -817,13 +824,14 @@ struct LiquidGlassToggleRow: View {
 
             Spacer()
 
-            // 开关
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .tint(.purple)
+                .zIndex(1)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 }
 

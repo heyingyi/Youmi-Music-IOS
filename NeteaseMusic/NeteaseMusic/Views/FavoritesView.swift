@@ -12,6 +12,12 @@ struct FavoritesView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
+    private var listRowFill: Color {
+        if themeManager.customBackgroundEnabled, themeManager.customBackgroundImage != nil {
+            return Color.clear
+        }
+        return isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemBackground).opacity(0.55)
+    }
     
     // 过滤后的歌曲列表
     private var filteredFavorites: [Track] {
@@ -115,7 +121,7 @@ struct FavoritesView: View {
                     .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
-                .listRowBackground(isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemBackground))
+                    .listRowBackground(listRowFill)
             }
             
             // 搜索结果为空
@@ -150,11 +156,11 @@ struct FavoritesView: View {
                 .onTapGesture {
                     playTrack(at: originalIndex)
                 }
-                .listRowBackground(isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemBackground))
+                    .listRowBackground(listRowFill)
             }
         }
         .listStyle(.plain)
-        .scrollContentBackground(isStrangerTheme ? .hidden : .automatic)
+        .scrollContentBackground(.hidden)
     }
     
     // MARK: - 方法

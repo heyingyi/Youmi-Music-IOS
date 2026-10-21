@@ -57,32 +57,43 @@ private struct CompatibleGlassEffect: ViewModifier {
     @ObservedObject private var themeManager = ThemeManager.shared
 
     func body(content: Content) -> some View {
-        Group {
-            if themeManager.liquidGlassEnabled {
-                if #available(iOS 26.0, *) {
-                    nativeGlass(content)
-                } else {
-                    content.background(fallbackBackground)
-                }
-            } else {
-                content.background(solidBackground)
-            }
+        content.background {
+            glassLayer.allowsHitTesting(false)
         }
     }
 
     @ViewBuilder
-    private func nativeGlass(_ content: Content) -> some View {
+    private var glassLayer: some View {
+        if themeManager.liquidGlassEnabled {
+            if #available(iOS 26.0, *) {
+                nativeGlassBackground
+            } else {
+                fallbackBackground
+            }
+        } else {
+            solidBackground
+        }
+    }
+
+    @ViewBuilder
+    private var nativeGlassBackground: some View {
         if #available(iOS 26.0, *) {
             switch shape {
             case .rounded(let radius):
-                content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
+                RoundedRectangle(cornerRadius: radius)
+                    .fill(.clear)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
             case .circle:
-                content.glassEffect(.regular, in: Circle())
+                Circle()
+                    .fill(.clear)
+                    .glassEffect(.regular, in: Circle())
             case .capsule:
-                content.glassEffect(.regular, in: Capsule())
+                Capsule()
+                    .fill(.clear)
+                    .glassEffect(.regular, in: Capsule())
             }
         } else {
-            content.background(fallbackBackground)
+            fallbackBackground
         }
     }
 
@@ -476,7 +487,9 @@ struct LiquidGlassBackground: View {
 
             CustomWallpaperLayer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 
@@ -486,25 +499,22 @@ struct CustomWallpaperLayer: View {
 
     var body: some View {
         if themeManager.customBackgroundEnabled, let image = themeManager.customBackgroundImage {
-            GeometryReader { geo in
-                ZStack {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .clipped()
-                        .opacity(themeManager.backgroundOpacity)
-
+            let screen = UIScreen.main.bounds.size
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .opacity(themeManager.backgroundOpacity)
+                .overlay {
                     Rectangle()
                         .fill(.ultraThinMaterial)
                         .opacity(themeManager.backgroundFrost)
-
                     Color(colorScheme == .dark ? .black : .white)
                         .opacity(0.08 + themeManager.backgroundFrost * 0.12)
                 }
-            }
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
+                .frame(width: screen.width, height: screen.height)
+                .clipped()
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
         }
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - 云盘页面
 struct CloudDiskView: View {
     @ObservedObject private var audioPlayer = AudioPlayer.shared
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var songs: [CloudDiskSong] = []
     @State private var isLoading = true
     @State private var totalCount: Int = 0
@@ -57,7 +58,7 @@ struct CloudDiskView: View {
             }
             .padding(.bottom, 100)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(ThemedBackground().environmentObject(themeManager))
         .navigationTitle("我的云盘")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadCloudDisk() }
