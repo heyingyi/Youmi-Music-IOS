@@ -79,11 +79,14 @@ struct SplashView: View {
 
     var body: some View {
         ZStack {
-            // 背景图 + 渐变遮罩
-            Image("SplashBackground")
-                .resizable()
-                .scaledToFill()
-                .ignoresSafeArea()
+            GeometryReader { geo in
+                Image("SplashBackground")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+            .ignoresSafeArea()
 
             LinearGradient(
                 colors: [
@@ -127,6 +130,7 @@ struct SplashView: View {
             }
             .opacity(opacity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) {
                 opacity = 1.0

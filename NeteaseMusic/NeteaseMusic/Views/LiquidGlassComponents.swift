@@ -57,44 +57,30 @@ private struct CompatibleGlassEffect: ViewModifier {
     @ObservedObject private var themeManager = ThemeManager.shared
 
     func body(content: Content) -> some View {
-        content.background {
-            glassLayer.allowsHitTesting(false)
+        switch shape {
+        case .rounded(let radius):
+            content.background(fill(RoundedRectangle(cornerRadius: radius, style: .continuous)))
+        case .circle:
+            content.background(fill(Circle()))
+        case .capsule:
+            content.background(fill(Capsule()))
         }
     }
 
     @ViewBuilder
-    private var glassLayer: some View {
-        if themeManager.liquidGlassEnabled {
-            if #available(iOS 26.0, *) {
-                nativeGlassBackground
+    private func fill<S: Shape>(_ shape: S) -> some View {
+        Group {
+            if themeManager.liquidGlassEnabled {
+                if #available(iOS 26.0, *) {
+                    shape.fill(.clear).glassEffect(.regular, in: shape)
+                } else {
+                    shape.fill(.ultraThinMaterial)
+                }
             } else {
-                fallbackBackground
+                shape.fill(Color(.secondarySystemBackground).opacity(0.96))
             }
-        } else {
-            solidBackground
         }
-    }
-
-    @ViewBuilder
-    private var nativeGlassBackground: some View {
-        if #available(iOS 26.0, *) {
-            switch shape {
-            case .rounded(let radius):
-                RoundedRectangle(cornerRadius: radius)
-                    .fill(.clear)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius))
-            case .circle:
-                Circle()
-                    .fill(.clear)
-                    .glassEffect(.regular, in: Circle())
-            case .capsule:
-                Capsule()
-                    .fill(.clear)
-                    .glassEffect(.regular, in: Capsule())
-            }
-        } else {
-            fallbackBackground
-        }
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -487,9 +473,8 @@ struct LiquidGlassBackground: View {
 
             CustomWallpaperLayer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
+        .clipped()
+        .ignoresSafeArea(edges: [.top, .horizontal])
     }
 }
 
@@ -499,11 +484,14 @@ struct CustomWallpaperLayer: View {
 
     var body: some View {
         if themeManager.customBackgroundEnabled, let image = themeManager.customBackgroundImage {
-            let screen = UIScreen.main.bounds.size
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .opacity(themeManager.backgroundOpacity)
+            Rectangle()
+                .fill(.clear)
+                .overlay {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(themeManager.backgroundOpacity)
+                }
                 .overlay {
                     Rectangle()
                         .fill(.ultraThinMaterial)
@@ -511,9 +499,7 @@ struct CustomWallpaperLayer: View {
                     Color(colorScheme == .dark ? .black : .white)
                         .opacity(0.08 + themeManager.backgroundFrost * 0.12)
                 }
-                .frame(width: screen.width, height: screen.height)
                 .clipped()
-                .ignoresSafeArea()
                 .allowsHitTesting(false)
         }
     }

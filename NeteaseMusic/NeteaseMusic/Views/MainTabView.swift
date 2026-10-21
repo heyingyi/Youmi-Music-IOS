@@ -1578,6 +1578,7 @@ private struct TabContentContainer: View {
             }
             .zIndex(selectedTab == .library ? 1 : 0)
         }
+        .clipped()
         .onChangeCompat(of: selectedTab) { _, newTab in
             loadedTabs.insert(newTab)
         }

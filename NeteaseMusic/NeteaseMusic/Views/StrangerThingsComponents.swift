@@ -492,9 +492,8 @@ struct StrangerThingsBackground: View {
                 ScanlineLayer(opacity: scanlineOpacity)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
+        .clipped()
+        .ignoresSafeArea(edges: [.top, .horizontal])
     }
 }
 
@@ -569,9 +568,6 @@ struct ThemedBackground: View {
                 StrangerThingsBackground()
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
     }
 }
 

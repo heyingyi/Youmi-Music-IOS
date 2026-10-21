@@ -202,12 +202,17 @@ struct SettingsView: View {
                 switch themeManager.themeStyle {
                 case .standard:
                     content()
-                        .glassEffectRounded(cornerRadius: 16)
+                        .background {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(themeManager.liquidGlassEnabled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color(.secondarySystemBackground).opacity(0.96)))
+                                .allowsHitTesting(false)
+                        }
                 case .strangerThings:
                     content()
                         .background(
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(Color(red: 0.08, green: 0.04, blue: 0.12).opacity(0.95))
+                                .allowsHitTesting(false)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
@@ -219,6 +224,7 @@ struct SettingsView: View {
                                     ),
                                     lineWidth: 1
                                 )
+                                .allowsHitTesting(false)
                         )
                         .shadow(color: Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.2), radius: 10, x: 0, y: 0)
                 }
@@ -292,7 +298,22 @@ struct SettingsView: View {
 
     // MARK: - 液态玻璃外观设置
     private var liquidGlassAppearanceSection: some View {
-        themedSection(title: "外观") {
+        VStack(alignment: .leading, spacing: 12) {
+            Group {
+                switch themeManager.themeStyle {
+                case .standard:
+                    Text("外观")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.secondary)
+                case .strangerThings:
+                    Text("外观".uppercased())
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.8))
+                        .tracking(2)
+                }
+            }
+            .padding(.horizontal, 20)
+
             VStack(alignment: .leading, spacing: 20) {
                 // 颜倒世界主题装饰 - 字母灯墙
                 if themeManager.themeStyle == .strangerThings {
@@ -376,7 +397,23 @@ struct SettingsView: View {
                 customBackgroundControls
                     .padding(.bottom, 8)
             }
+            .background {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(appearanceCardFill)
+                    .allowsHitTesting(false)
+            }
+            .padding(.horizontal, 16)
         }
+    }
+
+    private var appearanceCardFill: AnyShapeStyle {
+        if themeManager.themeStyle == .strangerThings {
+            return AnyShapeStyle(Color(red: 0.08, green: 0.04, blue: 0.12).opacity(0.95))
+        }
+        if themeManager.liquidGlassEnabled {
+            return AnyShapeStyle(.ultraThinMaterial)
+        }
+        return AnyShapeStyle(Color(.secondarySystemBackground).opacity(0.96))
     }
 
     @ViewBuilder
