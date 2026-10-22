@@ -494,6 +494,7 @@ struct StrangerThingsBackground: View {
         }
         .clipped()
         .ignoresSafeArea(edges: [.top, .horizontal])
+        .allowsHitTesting(false)
     }
 }
 

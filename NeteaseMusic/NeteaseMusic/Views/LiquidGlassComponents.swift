@@ -475,6 +475,7 @@ struct LiquidGlassBackground: View {
         }
         .clipped()
         .ignoresSafeArea(edges: [.top, .horizontal])
+        .allowsHitTesting(false)
     }
 }
 
@@ -484,8 +485,7 @@ struct CustomWallpaperLayer: View {
 
     var body: some View {
         if themeManager.customBackgroundEnabled, let image = themeManager.customBackgroundImage {
-            Rectangle()
-                .fill(.clear)
+            Color.clear
                 .overlay {
                     Image(uiImage: image)
                         .resizable()
@@ -493,11 +493,8 @@ struct CustomWallpaperLayer: View {
                         .opacity(themeManager.backgroundOpacity)
                 }
                 .overlay {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(themeManager.backgroundFrost)
                     Color(colorScheme == .dark ? .black : .white)
-                        .opacity(0.08 + themeManager.backgroundFrost * 0.12)
+                        .opacity(0.10 + themeManager.backgroundFrost * 0.45)
                 }
                 .clipped()
                 .allowsHitTesting(false)

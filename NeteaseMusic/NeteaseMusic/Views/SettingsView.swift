@@ -23,7 +23,10 @@ struct SettingsView: View {
 
     var body: some View {
         ZStack {
-        ScrollView(showsIndicators: false) {
+            themedBackground
+                .allowsHitTesting(false)
+
+            ScrollView(showsIndicators: false) {
             VStack(spacing: 20) {
                 // 音源设置
                 liquidGlassMusicSourceSection
@@ -39,7 +42,6 @@ struct SettingsView: View {
             }
             .padding(.bottom, 120)
         }
-        .background(themedBackground)
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.large)
         .photosPicker(isPresented: $showBackgroundPicker, selection: $selectedPhotoItem, matching: .images)
@@ -406,14 +408,11 @@ struct SettingsView: View {
         }
     }
 
-    private var appearanceCardFill: AnyShapeStyle {
+    private var appearanceCardFill: Color {
         if themeManager.themeStyle == .strangerThings {
-            return AnyShapeStyle(Color(red: 0.08, green: 0.04, blue: 0.12).opacity(0.95))
+            return Color(red: 0.08, green: 0.04, blue: 0.12).opacity(0.95)
         }
-        if themeManager.liquidGlassEnabled {
-            return AnyShapeStyle(.ultraThinMaterial)
-        }
-        return AnyShapeStyle(Color(.secondarySystemBackground).opacity(0.96))
+        return Color(.secondarySystemBackground).opacity(0.92)
     }
 
     @ViewBuilder
@@ -517,15 +516,21 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
 
             if let preview = themeManager.customBackgroundImage {
-                Image(uiImage: preview)
-                    .resizable()
-                    .scaledToFill()
+                Color.clear
                     .frame(height: 92)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay {
+                        Image(uiImage: preview)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .allowsHitTesting(false)
                     .padding(.horizontal, 16)
             }
 
