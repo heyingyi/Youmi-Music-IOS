@@ -188,6 +188,10 @@ class ThemeManager: ObservableObject {
     }
 
     @Published var customBackgroundImage: UIImage? = nil
+
+    var showsCustomWallpaper: Bool {
+        customBackgroundEnabled && customBackgroundImage != nil
+    }
     
     init() {
         // 加载外观模式

@@ -42,6 +42,7 @@ struct SettingsView: View {
             }
             .padding(.bottom, 120)
         }
+        .immersiveNavigationChrome()
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.large)
         .photosPicker(isPresented: $showBackgroundPicker, selection: $selectedPhotoItem, matching: .images)
@@ -97,11 +98,15 @@ struct SettingsView: View {
     // MARK: - 主题感知背景
     @ViewBuilder
     private var themedBackground: some View {
-        switch themeManager.themeStyle {
-        case .standard:
-            LiquidGlassBackground(colors: [.purple.opacity(0.08), .blue.opacity(0.06), .cyan.opacity(0.04)])
-        case .strangerThings:
-            StrangerThingsBackground()
+        if themeManager.showsCustomWallpaper {
+            CustomWallpaperLayer()
+        } else {
+            switch themeManager.themeStyle {
+            case .standard:
+                LiquidGlassBackground(colors: [.purple.opacity(0.08), .blue.opacity(0.06), .cyan.opacity(0.04)])
+            case .strangerThings:
+                StrangerThingsBackground()
+            }
         }
     }
     
@@ -204,11 +209,7 @@ struct SettingsView: View {
                 switch themeManager.themeStyle {
                 case .standard:
                     content()
-                        .background {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(themeManager.liquidGlassEnabled ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color(.secondarySystemBackground).opacity(0.96)))
-                                .allowsHitTesting(false)
-                        }
+                        .glassEffectRounded(cornerRadius: 16)
                 case .strangerThings:
                     content()
                         .background(
@@ -400,19 +401,15 @@ struct SettingsView: View {
                     .padding(.bottom, 8)
             }
             .background {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(appearanceCardFill)
-                    .allowsHitTesting(false)
+                if themeManager.themeStyle == .strangerThings {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(red: 0.08, green: 0.04, blue: 0.12).opacity(0.95))
+                        .allowsHitTesting(false)
+                }
             }
+            .modifier(AppearanceCardGlassModifier())
             .padding(.horizontal, 16)
         }
-    }
-
-    private var appearanceCardFill: Color {
-        if themeManager.themeStyle == .strangerThings {
-            return Color(red: 0.08, green: 0.04, blue: 0.12).opacity(0.95)
-        }
-        return Color(.secondarySystemBackground).opacity(0.92)
     }
 
     @ViewBuilder
@@ -741,18 +738,6 @@ struct LiquidGlassAppearanceButton: View {
     let action: () -> Void
     @Environment(\.colorScheme) var colorScheme
 
-    private var buttonBackground: Color {
-        if isSelected {
-            return colorScheme == .dark
-                ? Color(white: 0.25).opacity(0.95)
-                : Color.white.opacity(0.95)
-        } else {
-            return colorScheme == .dark
-                ? Color(white: 0.18).opacity(0.9)
-                : Color(white: 0.96).opacity(0.9)
-        }
-    }
-    
     var body: some View {
         Button(action: {
             let impact = UIImpactFeedbackGenerator(style: .light)
@@ -761,11 +746,9 @@ struct LiquidGlassAppearanceButton: View {
         }) {
             VStack(spacing: 10) {
                 ZStack {
-                    // 背景
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(buttonBackground)
-                    
-                    // 选中状态彩色光晕
+                        .fill(.ultraThinMaterial)
+
                     if isSelected {
                         RoundedRectangle(cornerRadius: 14)
                             .fill(
@@ -1104,6 +1087,19 @@ struct ThemeStyleCard: View {
             .frame(width: 110)
         }
         .buttonStyle(LiquidGlassButtonStyle())
+    }
+}
+
+private struct AppearanceCardGlassModifier: ViewModifier {
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if themeManager.themeStyle == .standard {
+            content.glassEffectRounded(cornerRadius: 16)
+        } else {
+            content
+        }
     }
 }
 

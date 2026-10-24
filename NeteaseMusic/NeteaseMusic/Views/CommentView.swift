@@ -46,14 +46,14 @@ struct CommentView: View {
     private var isStrangerTheme: Bool { themeManager.isStrangerTheme }
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemGroupedBackground) }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemBackground) }
+
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .blue }
     
     var body: some View {
         NavigationView {
             ZStack {
-                backgroundColor.ignoresSafeArea()
+                ThemedBackground()
+                    .environmentObject(themeManager)
                 
                 VStack(spacing: 0) {
                     if isLoading && comments.isEmpty {
@@ -66,6 +66,7 @@ struct CommentView: View {
                     commentInputBar
                 }
             }
+            .immersiveNavigationChrome()
             .navigationTitle("评论")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -183,7 +184,7 @@ struct CommentView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
-        .background(cardBackground)
+        .background(.ultraThinMaterial)
     }
     
     // MARK: - 点赞评论
@@ -235,7 +236,7 @@ struct CommentView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.systemGray6))
+                .background(.ultraThinMaterial)
             }
             
             HStack(spacing: 12) {
@@ -244,7 +245,7 @@ struct CommentView: View {
                     .foregroundColor(textColor)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 20).fill(isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.systemGray6)))
+                    .background(RoundedRectangle(cornerRadius: 20).fill(.ultraThinMaterial))
                     .focused($isInputFocused)
                 
                 Button { Task { await sendComment() } } label: {
@@ -262,7 +263,7 @@ struct CommentView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(cardBackground)
+            .background(.ultraThinMaterial)
         }
     }
     
@@ -496,7 +497,7 @@ struct CommentRow: View {
                     .disabled(isLoadingReplies)
                 }
                 .padding(10)
-                .background(isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.systemGray6))
+                .background(.ultraThinMaterial)
                 .cornerRadius(8)
             }
         } else {
@@ -537,7 +538,7 @@ struct CommentRow: View {
                 }
             }
             .padding(10)
-            .background(isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.systemGray6))
+            .background(.ultraThinMaterial)
             .cornerRadius(8)
         }
     }

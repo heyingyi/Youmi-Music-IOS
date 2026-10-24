@@ -118,7 +118,11 @@ struct SearchView: View {
                 musicCategoriesView
             }
         }
-        .background(LiquidGlassBackground(colors: [.cyan.opacity(0.06), .blue.opacity(0.05), .purple.opacity(0.04)]))
+        .background {
+            ThemedBackground(standardColors: [.cyan.opacity(0.06), .blue.opacity(0.05), .purple.opacity(0.04)])
+                .environmentObject(themeManager)
+        }
+        .immersiveNavigationChrome()
         .navigationTitle("搜索")
         .navigationBarTitleDisplayMode(.large)
         .onAppear {
@@ -364,7 +368,7 @@ struct SearchView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
-        .background(Color(.systemBackground))
+        .background(.ultraThinMaterial)
     }
     
     private func countFor(_ type: SearchType) -> Int {
@@ -1089,11 +1093,8 @@ struct LiquidGlassSearchBarView: View {
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : .white)
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-        )
+        .glassEffectRounded(cornerRadius: 12)
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         .padding(.horizontal, 16)
         .transition(.opacity.combined(with: .move(edge: .top)))
     }

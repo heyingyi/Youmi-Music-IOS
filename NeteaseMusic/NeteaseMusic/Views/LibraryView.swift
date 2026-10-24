@@ -24,22 +24,22 @@ struct LibraryView: View {
     }
     
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 20) {
-                // 用户区域
-                liquidGlassUserSection
-                
-                // 网易Max 区域（登录后显示）
-                if authViewModel.isLoggedIn {
-                    cloudMusicSection
-                }
+        ZStack {
+            themedBackground
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    liquidGlassUserSection
 
-                // 本地收藏库内容
-                liquidGlassLibraryContent
+                    if authViewModel.isLoggedIn {
+                        cloudMusicSection
+                    }
+
+                    liquidGlassLibraryContent
+                }
+                .padding(.bottom, 120)
             }
-            .padding(.bottom, 120)
         }
-        .background(themedBackground)
+        .immersiveNavigationChrome()
         .navigationTitle("我的")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -84,11 +84,15 @@ struct LibraryView: View {
     // MARK: - 主题背景
     @ViewBuilder
     private var themedBackground: some View {
-        switch themeManager.themeStyle {
-        case .standard:
-            LiquidGlassBackground(colors: [.blue.opacity(0.08), .purple.opacity(0.06), .pink.opacity(0.04)])
-        case .strangerThings:
-            StrangerThingsBackground()
+        if themeManager.showsCustomWallpaper {
+            CustomWallpaperLayer()
+        } else {
+            switch themeManager.themeStyle {
+            case .standard:
+                LiquidGlassBackground(colors: [.blue.opacity(0.08), .purple.opacity(0.06), .pink.opacity(0.04)])
+            case .strangerThings:
+                StrangerThingsBackground()
+            }
         }
     }
     
@@ -155,7 +159,7 @@ struct LibraryView: View {
     
     // MARK: - 网易Max 云端音乐区域
     private var cloudMusicSection: some View {
-        LiquidGlassSection(title: "网易Max") {
+        LiquidGlassSection(title: "网易Max", showsBackground: false) {
             if isLoadingCloud {
                 GridSkeletonView(
                     count: 6,
@@ -233,7 +237,7 @@ struct LibraryView: View {
     private var liquidGlassLibraryContent: some View {
         VStack(spacing: 20) {
             // 本地音乐库
-            LiquidGlassSection(title: "本地音乐库") {
+            LiquidGlassSection(title: "本地音乐库", showsBackground: false) {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12),
@@ -289,10 +293,10 @@ struct CloudFeatureCard: View {
     let title: String
     let count: Int?
     @Environment(\.colorScheme) var colorScheme
+    @ObservedObject private var themeManager = ThemeManager.shared
     
     var body: some View {
         VStack(spacing: 10) {
-            // 图标
             ZStack {
                 Circle()
                     .fill(
@@ -309,13 +313,11 @@ struct CloudFeatureCard: View {
             }
             .frame(width: 50, height: 50)
             
-            // 标题
             Text(title)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.primary)
                 .lineLimit(1)
             
-            // 数量
             if let count = count {
                 Text("\(count)")
                     .font(.system(size: 11))
@@ -324,24 +326,22 @@ struct CloudFeatureCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: colorScheme == .dark
-                                    ? [.white.opacity(0.2), .clear]
-                                    : [.white.opacity(0.8), .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+        .glassEffectRounded(cornerRadius: 16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: colorScheme == .dark
+                            ? [.white.opacity(0.22), .clear]
+                            : [.white.opacity(0.55), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
                 )
+                .allowsHitTesting(false)
         )
-        .shadow(color: iconColor.opacity(0.15), radius: 8, x: 0, y: 4)
+        .shadow(color: iconColor.opacity(themeManager.liquidGlassEnabled ? 0.12 : 0.08), radius: 8, x: 0, y: 4)
     }
 }
 
@@ -390,26 +390,20 @@ struct LiquidGlassUserCard: View {
                 .foregroundColor(.secondary)
         }
         .padding(16)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(.ultraThinMaterial)
-                
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(colorScheme == .dark ? Color.white.opacity(0.1) : Color.white.opacity(0.8))
-                
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [.white.opacity(0.4), .white.opacity(0.1), .clear]
-                                : [.white.opacity(0.8), .white.opacity(0.3), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
-            }
+        .glassEffectRounded(cornerRadius: 18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: colorScheme == .dark
+                            ? [.white.opacity(0.4), .white.opacity(0.1), .clear]
+                            : [.white.opacity(0.55), .white.opacity(0.18), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+                .allowsHitTesting(false)
         )
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 15, x: 0, y: 8)
     }
@@ -464,26 +458,20 @@ struct LiquidGlassLoginCard: View {
                 .foregroundColor(.secondary)
         }
         .padding(16)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(.ultraThinMaterial)
-                
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(colorScheme == .dark ? Color.white.opacity(0.1) : Color.white.opacity(0.8))
-                
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [.white.opacity(0.4), .white.opacity(0.1), .clear]
-                                : [.white.opacity(0.8), .white.opacity(0.3), .clear],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
-            }
+        .glassEffectRounded(cornerRadius: 18)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: colorScheme == .dark
+                            ? [.white.opacity(0.4), .white.opacity(0.1), .clear]
+                            : [.white.opacity(0.55), .white.opacity(0.18), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+                .allowsHitTesting(false)
         )
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.2 : 0.08), radius: 15, x: 0, y: 8)
     }
@@ -584,20 +572,24 @@ struct CloudPlaylistsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(playlists) { playlist in
-                    NavigationLink {
-                        CloudPlaylistDetailView(playlist: playlist)
-                    } label: {
-                        PlaylistRowView(playlist: playlist)
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(playlists) { playlist in
+                        NavigationLink {
+                            CloudPlaylistDetailView(playlist: playlist)
+                        } label: {
+                            PlaylistRowView(playlist: playlist)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding()
             }
-            .padding()
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("我的歌单")
     }
 }
@@ -642,10 +634,7 @@ struct PlaylistRowView: View {
                 .foregroundColor(.secondary)
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : .white)
-        )
+        .glassEffectRounded(cornerRadius: 12)
     }
 }
 
@@ -657,30 +646,34 @@ struct CloudPlaylistDetailView: View {
     @ObservedObject private var audioPlayer = AudioPlayer.shared
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                playlistHeader
-                playAllButton
-                
-                if isLoading {
-                    ProgressView().padding(.top, 40)
-                } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                            CloudTrackRow(track: track, index: index + 1) {
-                                playTrack(track, index: index)
-                            }
-                            if index < tracks.count - 1 {
-                                Divider().padding(.leading, 60)
+        ZStack {
+            ThemedBackground()
+                .environmentObject(ThemeManager.shared)
+            ScrollView {
+                VStack(spacing: 0) {
+                    playlistHeader
+                    playAllButton
+
+                    if isLoading {
+                        ProgressView().padding(.top, 40)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                                CloudTrackRow(track: track, index: index + 1) {
+                                    playTrack(track, index: index)
+                                }
+                                if index < tracks.count - 1 {
+                                    Divider().padding(.leading, 60)
+                                }
                             }
                         }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.bottom, 100)
             }
-            .padding(.bottom, 100)
         }
-        .background(ThemedBackground().environmentObject(ThemeManager.shared))
+        .immersiveNavigationChrome()
         .navigationTitle(playlist.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadTracks() }
@@ -852,38 +845,42 @@ struct CloudLikedSongsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                likedHeader
-                playAllButton
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            ScrollView {
+                VStack(spacing: 0) {
+                    likedHeader
+                    playAllButton
 
-                if isLoading {
-                    VStack(spacing: 8) {
-                        ProgressView()
-                        if !loadingProgress.isEmpty {
-                            Text(loadingProgress)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.top, 40)
-                } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                            LikedTrackRow(track: track, index: index + 1) {
-                                playTrack(track, index: index)
-                            }
-                            if index < tracks.count - 1 {
-                                Divider().padding(.leading, 60)
+                    if isLoading {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                            if !loadingProgress.isEmpty {
+                                Text(loadingProgress)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
+                        .padding(.top, 40)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                                LikedTrackRow(track: track, index: index + 1) {
+                                    playTrack(track, index: index)
+                                }
+                                if index < tracks.count - 1 {
+                                    Divider().padding(.leading, 60)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.bottom, 100)
             }
-            .padding(.bottom, 100)
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("喜欢的音乐")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -959,20 +956,24 @@ struct CloudAlbumsView: View {
     ]
     
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(albums) { album in
-                    NavigationLink {
-                        CloudAlbumDetailView(album: album)
-                    } label: {
-                        AlbumCardView(album: album)
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(albums) { album in
+                        NavigationLink {
+                            CloudAlbumDetailView(album: album)
+                        } label: {
+                            AlbumCardView(album: album)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding()
             }
-            .padding()
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("收藏的专辑")
     }
 }
@@ -1025,30 +1026,34 @@ struct CloudAlbumDetailView: View {
     @ObservedObject private var audioPlayer = AudioPlayer.shared
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                albumHeader
-                playAllButton
-                
-                if isLoading {
-                    ProgressView().padding(.top, 40)
-                } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
-                            CloudTrackRow(track: track, index: index + 1) {
-                                playTrack(track, index: index)
-                            }
-                            if index < tracks.count - 1 {
-                                Divider().padding(.leading, 60)
+        ZStack {
+            ThemedBackground()
+                .environmentObject(ThemeManager.shared)
+            ScrollView {
+                VStack(spacing: 0) {
+                    albumHeader
+                    playAllButton
+
+                    if isLoading {
+                        ProgressView().padding(.top, 40)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                                CloudTrackRow(track: track, index: index + 1) {
+                                    playTrack(track, index: index)
+                                }
+                                if index < tracks.count - 1 {
+                                    Divider().padding(.leading, 60)
+                                }
                             }
                         }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.bottom, 100)
             }
-            .padding(.bottom, 100)
         }
-        .background(ThemedBackground().environmentObject(ThemeManager.shared))
+        .immersiveNavigationChrome()
         .navigationTitle(album.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadTracks() }

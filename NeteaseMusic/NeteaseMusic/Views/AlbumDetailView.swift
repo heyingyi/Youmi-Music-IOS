@@ -23,8 +23,7 @@ struct AlbumDetailView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemBackground) }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.secondarySystemBackground) }
+
     
     // 过滤后的歌曲列表
     private var filteredSongs: [Track] {
@@ -71,7 +70,7 @@ struct AlbumDetailView: View {
                     .padding(.bottom, 120)
                     .background(
                         RoundedRectangle(cornerRadius: 24)
-                            .fill(backgroundColor)
+                            .fill(.ultraThinMaterial)
                     )
                 }
             }
@@ -88,7 +87,7 @@ struct AlbumDetailView: View {
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(scrollOffset < -180 ? .visible : .hidden, for: .navigationBar)
-        .toolbarBackground(backgroundColor.opacity(0.95), for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: { dismiss() }) {
@@ -123,15 +122,8 @@ struct AlbumDetailView: View {
     
     // MARK: - 背景视图
     private var backgroundView: some View {
-        Group {
-            if isStrangerTheme {
-                StrangerThingsBackground()
-                    .environmentObject(themeManager)
-            } else {
-                Color(.systemBackground)
-            }
-        }
-        .ignoresSafeArea()
+        ThemedBackground()
+            .environmentObject(themeManager)
     }
     
     
@@ -255,7 +247,7 @@ struct AlbumDetailView: View {
                         .foregroundColor(textColor)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(cardBackground)
+                        .background(.ultraThinMaterial)
                         .clipShape(Capsule())
                     }
                 }
@@ -374,8 +366,7 @@ struct AlbumDetailView: View {
                         }
                     }
                 }
-                .background(cardBackground)
-                .cornerRadius(16)
+                .glassEffectRounded(cornerRadius: 16)
                 .padding(.horizontal, 16)
             }
         }
@@ -384,7 +375,7 @@ struct AlbumDetailView: View {
     // MARK: - 加载中遮罩
     private var loadingOverlay: some View {
         ZStack {
-            backgroundColor.opacity(0.8)
+            Color.black.opacity(0.35)
             VStack(spacing: 16) {
                 ProgressView()
                     .scaleEffect(1.2)

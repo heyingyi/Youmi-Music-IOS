@@ -38,10 +38,10 @@ struct DiscoverView: View {
     }
     
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            ZStack {
+        ZStack {
+            themedBackground
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 28) {
-                    // Banner 轮播
                     if isLoading && banners.isEmpty {
                         BannerSkeletonView()
                             .padding(.top, 12)
@@ -50,12 +50,10 @@ struct DiscoverView: View {
                             .padding(.top, 12)
                             .staggeredEntrance(index: 0)
                     }
-                    
-                    // 快捷入口
+
                     quickAccessSection
                         .staggeredEntrance(index: 1)
-                    
-                    // 最近播放
+
                     if isLoading && recentlyPlayed.isEmpty {
                         VStack(alignment: .leading, spacing: 20) {
                             HStack(spacing: 8) {
@@ -69,15 +67,14 @@ struct DiscoverView: View {
                         recentlyPlayedSection
                             .staggeredEntrance(index: 2)
                     }
-                    
-                    // 推荐歌单
+
                     liquidGlassPlaylistSection
                         .staggeredEntrance(index: 3)
                 }
+                .padding(.bottom, 120)
             }
-            .padding(.bottom, 120)
         }
-        .background(themedBackground)
+        .immersiveNavigationChrome()
         .navigationTitle("发现")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -102,11 +99,15 @@ struct DiscoverView: View {
     // MARK: - 主题背景
     @ViewBuilder
     private var themedBackground: some View {
-        switch themeManager.themeStyle {
-        case .standard:
-            LiquidGlassBackground()
-        case .strangerThings:
-            StrangerThingsBackground()
+        if themeManager.showsCustomWallpaper {
+            CustomWallpaperLayer()
+        } else {
+            switch themeManager.themeStyle {
+            case .standard:
+                LiquidGlassBackground()
+            case .strangerThings:
+                StrangerThingsBackground()
+            }
         }
     }
     
@@ -915,14 +916,7 @@ struct QuickAccessMenu: View {
                 .padding(20)
             }
             .frame(width: min(UIScreen.main.bounds.width * 0.85, 420))
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(colorScheme == .dark ? Color(.systemGray6) : .white)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(Color(.systemGray5).opacity(0.3), lineWidth: 1)
-            )
+            .glassEffectRounded(cornerRadius: 24)
             .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
         }
     }

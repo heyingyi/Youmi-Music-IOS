@@ -71,6 +71,7 @@ struct AppleMusicView: View {
                 }
             }
         }
+        .immersiveNavigationChrome()
         .navigationTitle("Apple Music")
         .navigationBarTitleDisplayMode(.large)
         .task {
@@ -98,10 +99,13 @@ struct AppleMusicView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(selectedCategory == category ? accentColor : Color(.systemGray5))
-                        )
+                        .background {
+                            if selectedCategory == category {
+                                Capsule().fill(accentColor)
+                            } else {
+                                Capsule().fill(.ultraThinMaterial)
+                            }
+                        }
                         .foregroundColor(selectedCategory == category ? .white : .primary)
                     }
                 }

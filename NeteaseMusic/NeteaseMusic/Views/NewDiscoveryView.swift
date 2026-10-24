@@ -17,56 +17,52 @@ struct NewDiscoveryView: View {
     private let musicService = MusicService.shared
     
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                if isLoading {
-                    // 骨架屏
-                    VStack(alignment: .leading, spacing: 24) {
-                        // 推荐新音乐骨架
-                        VStack(alignment: .leading, spacing: 12) {
-                            SkeletonBlock(width: 120, height: 22, cornerRadius: 4)
-                                .padding(.horizontal, 20)
-                            HorizontalCardSkeletonView(count: 4, cardWidth: 160)
+        ZStack {
+            themedBackground
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    if isLoading {
+                        VStack(alignment: .leading, spacing: 24) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                SkeletonBlock(width: 120, height: 22, cornerRadius: 4)
+                                    .padding(.horizontal, 20)
+                                HorizontalCardSkeletonView(count: 4, cardWidth: 160)
+                            }
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                SkeletonBlock(width: 100, height: 22, cornerRadius: 4)
+                                    .padding(.horizontal, 20)
+                                TrackListSkeletonView(count: 5)
+                            }
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                SkeletonBlock(width: 100, height: 22, cornerRadius: 4)
+                                    .padding(.horizontal, 20)
+                                HorizontalCardSkeletonView(count: 4, cardWidth: 160)
+                            }
                         }
-                        
-                        // 最新歌曲骨架
-                        VStack(alignment: .leading, spacing: 12) {
-                            SkeletonBlock(width: 100, height: 22, cornerRadius: 4)
-                                .padding(.horizontal, 20)
-                            TrackListSkeletonView(count: 5)
+                    } else {
+                        if !personalizedSongs.isEmpty {
+                            PersonalizedSongsSection(songs: personalizedSongs)
+                                .staggeredEntrance(index: 0)
                         }
-                        
-                        // 新碟上架骨架
-                        VStack(alignment: .leading, spacing: 12) {
-                            SkeletonBlock(width: 100, height: 22, cornerRadius: 4)
-                                .padding(.horizontal, 20)
-                            HorizontalCardSkeletonView(count: 4, cardWidth: 160)
+
+                        if !newSongs.isEmpty {
+                            NewSongsSection(songs: newSongs)
+                                .staggeredEntrance(index: 1)
                         }
-                    }
-                } else {
-                    // 快乐启蒙（推荐新音乐）
-                    if !personalizedSongs.isEmpty {
-                        PersonalizedSongsSection(songs: personalizedSongs)
-                            .staggeredEntrance(index: 0)
-                    }
-                    
-                    // 最新歌曲
-                    if !newSongs.isEmpty {
-                        NewSongsSection(songs: newSongs)
-                            .staggeredEntrance(index: 1)
-                    }
-                    
-                    // 新近发布（新碑上架）
-                    if !newAlbums.isEmpty {
-                        NewAlbumsSection(albums: newAlbums)
-                            .staggeredEntrance(index: 2)
+
+                        if !newAlbums.isEmpty {
+                            NewAlbumsSection(albums: newAlbums)
+                                .staggeredEntrance(index: 2)
+                        }
                     }
                 }
+                .padding(.top, 12)
+                .padding(.bottom, 120)
             }
-            .padding(.top, 12)
-            .padding(.bottom, 120)
         }
-        .background(themedBackground)
+        .immersiveNavigationChrome()
         .navigationTitle("新发现")
         .navigationBarTitleDisplayMode(.large)
         .task {
@@ -80,11 +76,15 @@ struct NewDiscoveryView: View {
     // MARK: - 主题背景
     @ViewBuilder
     private var themedBackground: some View {
-        switch themeManager.themeStyle {
-        case .standard:
-            LiquidGlassBackground()
-        case .strangerThings:
-            StrangerThingsBackground()
+        if themeManager.showsCustomWallpaper {
+            CustomWallpaperLayer()
+        } else {
+            switch themeManager.themeStyle {
+            case .standard:
+                LiquidGlassBackground()
+            case .strangerThings:
+                StrangerThingsBackground()
+            }
         }
     }
     

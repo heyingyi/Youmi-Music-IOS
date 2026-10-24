@@ -113,8 +113,7 @@ struct FullScreenSearchView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemBackground) }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemGray5) }
+
     
     // 搜索状态
     @StateObject private var historyManager = SearchHistoryManager.shared
@@ -157,14 +156,16 @@ struct FullScreenSearchView: View {
                     .padding(.bottom, 100)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(backgroundColor)
                 
                 Spacer(minLength: 0)
                 
                 // 底部搜索栏
                 searchBarView
             }
-            .background(backgroundColor)
+            .background {
+                ThemedBackground()
+                    .environmentObject(themeManager)
+            }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ArtistDestination.self) { dest in
                 ArtistDetailView(artistId: dest.id, artistName: dest.name)
@@ -205,10 +206,13 @@ struct FullScreenSearchView: View {
                             .foregroundColor(selectedCategory == category ? .white : textColor)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
-                            .background(
-                                Capsule()
-                                    .fill(selectedCategory == category ? accentColor : cardBackground)
-                            )
+                            .background {
+                                if selectedCategory == category {
+                                    Capsule().fill(accentColor)
+                                } else {
+                                    Capsule().fill(.ultraThinMaterial)
+                                }
+                            }
                     }
                 }
             }
@@ -461,7 +465,7 @@ struct FullScreenSearchView: View {
                 .frame(maxWidth: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.secondarySystemBackground))
+                        .fill(.ultraThinMaterial)
                 )
                 
                 // 关闭按钮
@@ -483,17 +487,7 @@ struct FullScreenSearchView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        .background(
-            Group {
-                if isStrangerTheme {
-                    Rectangle()
-                        .fill(backgroundColor.opacity(0.95))
-                } else {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                }
-            }
-        )
+        .background(.ultraThinMaterial)
         .fullScreenCover(isPresented: $showPlayer) {
             PlayerView()
         }
@@ -1221,7 +1215,10 @@ struct SearchContentView: View {
             .padding(.top, 16)
             .padding(.bottom, 120)
         }
-        .background(Color(.systemGroupedBackground))
+        .background {
+            ThemedBackground()
+                .environmentObject(ThemeManager.shared)
+        }
         .navigationBarHidden(true)
     }
 }

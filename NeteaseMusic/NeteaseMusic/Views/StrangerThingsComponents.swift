@@ -438,62 +438,58 @@ struct StrangerThingsBackground: View {
     
     var body: some View {
         ZStack {
-            // 深色基底
-            Color(red: 0.03, green: 0.01, blue: 0.05)
-            
-            // 渐变光晕
-            GeometryReader { geo in
-                ZStack {
-                    // 红色光晕（左上）
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.15),
-                                    Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.05),
-                                    .clear
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.6
+            if themeManager.showsCustomWallpaper {
+                Color.clear
+            } else {
+                Color(red: 0.03, green: 0.01, blue: 0.05)
+
+                GeometryReader { geo in
+                    ZStack {
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.15),
+                                        Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.05),
+                                        .clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.6
+                                )
                             )
-                        )
-                        .frame(width: geo.size.width * 1.2, height: geo.size.height * 0.5)
-                        .offset(x: -geo.size.width * 0.3, y: -geo.size.height * 0.1)
-                    
-                    // 蓝色光晕（右下）
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.12),
-                                    Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.04),
-                                    .clear
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.5
+                            .frame(width: geo.size.width * 1.2, height: geo.size.height * 0.5)
+                            .offset(x: -geo.size.width * 0.3, y: -geo.size.height * 0.1)
+
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.12),
+                                        Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.04),
+                                        .clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.5
+                                )
                             )
-                        )
-                        .frame(width: geo.size.width * 1.0, height: geo.size.height * 0.4)
-                        .offset(x: geo.size.width * 0.3, y: geo.size.height * 0.4)
+                            .frame(width: geo.size.width * 1.0, height: geo.size.height * 0.4)
+                            .offset(x: geo.size.width * 0.3, y: geo.size.height * 0.4)
+                    }
+                }
+
+                if themeManager.enableParticles {
+                    UpsideDownParticles()
+                }
+
+                if showScanlines {
+                    ScanlineLayer(opacity: scanlineOpacity)
                 }
             }
-            
-            CustomWallpaperLayer()
-
-            // 粒子效果
-            if themeManager.enableParticles {
-                UpsideDownParticles()
-            }
-            
-            // 扫描线效果
-            if showScanlines {
-                ScanlineLayer(opacity: scanlineOpacity)
-            }
         }
-        .clipped()
-        .ignoresSafeArea(edges: [.top, .horizontal])
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 }
@@ -562,13 +558,20 @@ struct ThemedBackground: View {
     
     var body: some View {
         Group {
-            switch themeManager.themeStyle {
-            case .standard:
-                LiquidGlassBackground(colors: standardColors)
-            case .strangerThings:
-                StrangerThingsBackground()
+            if themeManager.showsCustomWallpaper {
+                CustomWallpaperLayer()
+            } else {
+                switch themeManager.themeStyle {
+                case .standard:
+                    LiquidGlassBackground(colors: standardColors)
+                case .strangerThings:
+                    StrangerThingsBackground()
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 
@@ -730,15 +733,19 @@ struct ThemedTabBarBackground: View {
     
     @ViewBuilder
     private var standardBackground: some View {
-        if #available(iOS 26.0, *) {
-            // iOS 26+ 使用原生液态玻璃，加点tint让浅色模式更明显
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(.clear)
-                .glassEffect(.regular.tint(colorScheme == .dark ? .clear : Color.white.opacity(0.3)))
-                .allowsHitTesting(false) // 确保不阻挡点击
+        if themeManager.liquidGlassEnabled {
+            if #available(iOS 26.0, *) {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(.clear)
+                    .glassEffect(.regular.tint(colorScheme == .dark ? .clear : Color.white.opacity(0.12)))
+                    .allowsHitTesting(false)
+            } else {
+                legacyStandardBackground
+            }
         } else {
-            // iOS 26 以下使用自定义实现
-            legacyStandardBackground
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(Color(.secondarySystemBackground).opacity(themeManager.showsCustomWallpaper ? 0.72 : 0.96))
+                .allowsHitTesting(false)
         }
     }
     
@@ -750,8 +757,8 @@ struct ThemedTabBarBackground: View {
             RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(
                     colorScheme == .dark
-                        ? Color(white: 0.1).opacity(0.7)
-                        : Color(white: 0.98).opacity(0.75)
+                        ? Color(white: 0.1).opacity(themeManager.showsCustomWallpaper ? 0.28 : 0.55)
+                        : Color(white: 0.98).opacity(themeManager.showsCustomWallpaper ? 0.22 : 0.45)
                 )
             
             RoundedRectangle(cornerRadius: cornerRadius)
@@ -759,7 +766,7 @@ struct ThemedTabBarBackground: View {
                     LinearGradient(
                         colors: colorScheme == .dark
                             ? [Color.white.opacity(0.18), Color.white.opacity(0.03), .clear]
-                            : [Color.white.opacity(0.9), Color.white.opacity(0.4), .clear],
+                            : [Color.white.opacity(0.55), Color.white.opacity(0.18), .clear],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -774,7 +781,7 @@ struct ThemedTabBarBackground: View {
                     LinearGradient(
                         colors: colorScheme == .dark
                             ? [Color.white.opacity(0.4), Color.white.opacity(0.12), Color.white.opacity(0.05)]
-                            : [Color.white.opacity(1.0), Color.white.opacity(0.6), Color.white.opacity(0.2)],
+                            : [Color.white.opacity(0.7), Color.white.opacity(0.25), Color.white.opacity(0.08)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
@@ -782,7 +789,7 @@ struct ThemedTabBarBackground: View {
                 )
         }
         .compositingGroup()
-        .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.15), radius: 25, x: 0, y: 12)
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.12), radius: 25, x: 0, y: 12)
     }
     
     private var strangerThingsBackground: some View {
@@ -834,15 +841,19 @@ struct ThemedCircleBackground: View {
     
     @ViewBuilder
     private var standardCircle: some View {
-        if #available(iOS 26.0, *) {
-            // iOS 26+ 使用原生液态玻璃，加点tint让浅色模式更明显
-            Circle()
-                .fill(.clear)
-                .glassEffect(.regular.tint(colorScheme == .dark ? .clear : Color.white.opacity(0.3)))
-                .allowsHitTesting(false) // 确保不阻挡点击
+        if themeManager.liquidGlassEnabled {
+            if #available(iOS 26.0, *) {
+                Circle()
+                    .fill(.clear)
+                    .glassEffect(.regular.tint(colorScheme == .dark ? .clear : Color.white.opacity(0.12)))
+                    .allowsHitTesting(false)
+            } else {
+                legacyStandardCircle
+            }
         } else {
-            // iOS 26 以下使用自定义实现
-            legacyStandardCircle
+            Circle()
+                .fill(Color(.secondarySystemBackground).opacity(themeManager.showsCustomWallpaper ? 0.72 : 0.96))
+                .allowsHitTesting(false)
         }
     }
     
@@ -854,8 +865,8 @@ struct ThemedCircleBackground: View {
             Circle()
                 .fill(
                     colorScheme == .dark
-                        ? Color(white: 0.1).opacity(0.7)
-                        : Color(white: 0.98).opacity(0.75)
+                        ? Color(white: 0.1).opacity(themeManager.showsCustomWallpaper ? 0.28 : 0.55)
+                        : Color(white: 0.98).opacity(themeManager.showsCustomWallpaper ? 0.22 : 0.45)
                 )
             
             Circle()

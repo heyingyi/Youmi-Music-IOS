@@ -111,6 +111,12 @@ struct SleepTimerView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background {
+                ThemedBackground()
+                    .environmentObject(themeManager)
+            }
+            .immersiveNavigationChrome()
             .navigationTitle("定时关闭")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -70,7 +70,9 @@ struct RadarPlaylistView: View {
     // MARK: - 主题背景
     @ViewBuilder
     private var themedBackground: some View {
-        if isStrangerTheme {
+        if themeManager.showsCustomWallpaper {
+            CustomWallpaperLayer()
+        } else if isStrangerTheme {
             StrangerThingsBackground()
         } else {
             LiquidGlassBackground()

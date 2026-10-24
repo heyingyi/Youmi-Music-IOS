@@ -77,7 +77,7 @@ private struct CompatibleGlassEffect: ViewModifier {
                     shape.fill(.ultraThinMaterial)
                 }
             } else {
-                shape.fill(Color(.secondarySystemBackground).opacity(0.96))
+                shape.fill(Color(.secondarySystemBackground).opacity(themeManager.showsCustomWallpaper ? 0.72 : 0.96))
             }
         }
         .allowsHitTesting(false)
@@ -238,10 +238,12 @@ struct LiquidGlassCard<Content: View>: View {
 // MARK: - 液态玻璃分组容器（iOS 26 原生版）
 struct LiquidGlassSection<Content: View>: View {
     let title: String?
+    var showsBackground: Bool = true
     let content: Content
 
-    init(title: String? = nil, @ViewBuilder content: () -> Content) {
+    init(title: String? = nil, showsBackground: Bool = true, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.showsBackground = showsBackground
         self.content = content()
     }
 
@@ -254,9 +256,15 @@ struct LiquidGlassSection<Content: View>: View {
                     .padding(.horizontal, 20)
             }
 
-            content
-                .glassEffectRounded(cornerRadius: 16)
-                .padding(.horizontal, 16)
+            Group {
+                if showsBackground {
+                    content
+                        .glassEffectRounded(cornerRadius: 16)
+                } else {
+                    content
+                }
+            }
+            .padding(.horizontal, 16)
         }
     }
 }
@@ -429,52 +437,54 @@ struct LiquidGlassBackground: View {
 
     var body: some View {
         ZStack {
-            Color(colorScheme == .dark ? .systemBackground : .systemGroupedBackground)
+            if themeManager.showsCustomWallpaper {
+                Color.clear
+            } else {
+                Color(colorScheme == .dark ? .systemBackground : .systemGroupedBackground)
 
-            GeometryReader { geo in
-                ZStack {
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [colors[0], colors[0].opacity(0.3), .clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.9
+                GeometryReader { geo in
+                    ZStack {
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [colors[0], colors[0].opacity(0.3), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.9
+                                )
                             )
-                        )
-                        .frame(width: geo.size.width * 1.6, height: geo.size.height * 0.55)
-                        .offset(x: -geo.size.width * 0.25, y: -geo.size.height * 0.12)
+                            .frame(width: geo.size.width * 1.6, height: geo.size.height * 0.55)
+                            .offset(x: -geo.size.width * 0.25, y: -geo.size.height * 0.12)
 
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [colors[1], colors[1].opacity(0.3), .clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.7
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [colors[1], colors[1].opacity(0.3), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.7
+                                )
                             )
-                        )
-                        .frame(width: geo.size.width * 1.1, height: geo.size.height * 0.45)
-                        .offset(x: geo.size.width * 0.35, y: geo.size.height * 0.28)
+                            .frame(width: geo.size.width * 1.1, height: geo.size.height * 0.45)
+                            .offset(x: geo.size.width * 0.35, y: geo.size.height * 0.28)
 
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [colors[2], colors[2].opacity(0.2), .clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: geo.size.width * 0.6
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [colors[2], colors[2].opacity(0.2), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geo.size.width * 0.6
+                                )
                             )
-                        )
-                        .frame(width: geo.size.width * 1.3, height: geo.size.height * 0.35)
-                        .offset(x: -geo.size.width * 0.1, y: geo.size.height * 0.58)
+                            .frame(width: geo.size.width * 1.3, height: geo.size.height * 0.35)
+                            .offset(x: -geo.size.width * 0.1, y: geo.size.height * 0.58)
+                    }
                 }
             }
-
-            CustomWallpaperLayer()
         }
-        .clipped()
-        .ignoresSafeArea(edges: [.top, .horizontal])
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 }
@@ -484,20 +494,55 @@ struct CustomWallpaperLayer: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        if themeManager.customBackgroundEnabled, let image = themeManager.customBackgroundImage {
+        if themeManager.showsCustomWallpaper, let image = themeManager.customBackgroundImage {
             Color.clear
                 .overlay {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .opacity(themeManager.backgroundOpacity)
+                    GeometryReader { geo in
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                            .opacity(themeManager.backgroundOpacity)
+                    }
                 }
                 .overlay {
                     Color(colorScheme == .dark ? .black : .white)
-                        .opacity(0.10 + themeManager.backgroundFrost * 0.45)
+                        .opacity(0.06 + themeManager.backgroundFrost * 0.18)
                 }
-                .clipped()
+                .overlay {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(themeManager.backgroundFrost)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
                 .allowsHitTesting(false)
+        }
+    }
+}
+
+extension View {
+    func immersiveNavigationChrome() -> some View {
+        modifier(ImmersiveNavigationChrome())
+    }
+}
+
+private struct ImmersiveNavigationChrome: ViewModifier {
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if themeManager.showsCustomWallpaper {
+            content
+                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+        } else if themeManager.liquidGlassEnabled {
+            content
+                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+        } else {
+            content
         }
     }
 }

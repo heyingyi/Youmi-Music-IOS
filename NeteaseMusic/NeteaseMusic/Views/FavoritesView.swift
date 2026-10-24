@@ -13,7 +13,7 @@ struct FavoritesView: View {
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
     private var listRowFill: Color {
-        if themeManager.customBackgroundEnabled, themeManager.customBackgroundImage != nil {
+        if themeManager.showsCustomWallpaper {
             return Color.clear
         }
         return isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemBackground).opacity(0.55)
@@ -33,14 +33,18 @@ struct FavoritesView: View {
     }
     
     var body: some View {
-        Group {
-            if favorites.isEmpty {
-                emptyView
-            } else {
-                trackList
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            Group {
+                if favorites.isEmpty {
+                    emptyView
+                } else {
+                    trackList
+                }
             }
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("我喜欢的音乐")
         .navigationBarTitleDisplayMode(.large)
         .searchable(text: $searchText, prompt: "搜索歌曲、歌手、专辑")
@@ -87,6 +91,7 @@ struct FavoritesView: View {
             
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     // MARK: - 歌曲列表

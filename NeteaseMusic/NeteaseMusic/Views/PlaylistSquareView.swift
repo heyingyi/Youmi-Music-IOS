@@ -14,7 +14,6 @@ struct PlaylistSquareView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemGroupedBackground) }
     
     // Tab 图标配置
     private static let tabIcons = ["house.fill", "square.grid.2x2", "person.fill", "gearshape.fill"]
@@ -67,7 +66,10 @@ struct PlaylistSquareView: View {
             // 底部搜索栏
             bottomSearchBar
         }
-        .background(backgroundColor)
+        .background {
+            ThemedBackground()
+                .environmentObject(themeManager)
+        }
         .navigationBarHidden(true)
     }
     
@@ -152,7 +154,7 @@ struct PlaylistSquareView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
-        .background(isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.systemBackground))
+        .background(.ultraThinMaterial)
     }
     
     // MARK: - 歌曲结果列表
@@ -553,7 +555,6 @@ struct CategoryPlaylistListView: View {
     // 主题相关
     private var isStrangerTheme: Bool { themeManager.themeStyle == .strangerThings }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemGroupedBackground) }
     
     var body: some View {
         Group {
@@ -599,7 +600,11 @@ struct CategoryPlaylistListView: View {
                 }
             }
         }
-        .background(backgroundColor)
+        .background {
+            ThemedBackground()
+                .environmentObject(themeManager)
+        }
+        .immersiveNavigationChrome()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.large)
         .task {

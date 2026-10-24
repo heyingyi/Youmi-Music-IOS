@@ -37,31 +37,29 @@ struct LocalMusicView: View {
     }
     
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
-                // 头部统计和操作
-                headerSection
-                
-                // 导入进度
-                if localMusicService.isImporting {
-                    importProgressSection
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 16) {
+                    headerSection
+
+                    if localMusicService.isImporting {
+                        importProgressSection
+                    }
+
+                    if localMusicService.localTracks.isEmpty {
+                        emptyStateView
+                    } else {
+                        controlSection
+                        trackListSection
+                    }
                 }
-                
-                // 歌曲列表
-                if localMusicService.localTracks.isEmpty {
-                    emptyStateView
-                } else {
-                    // 播放全部和排序
-                    controlSection
-                    
-                    // 歌曲列表
-                    trackListSection
-                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 120)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 120)
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("本地歌曲")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -201,6 +199,7 @@ struct LocalMusicView: View {
             }
             .padding(.top, 16)
         }
+        .frame(maxWidth: .infinity, minHeight: 420)
         .padding(.vertical, 60)
     }
     
@@ -286,27 +285,7 @@ struct LocalMusicView: View {
                 }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(isStrangerTheme 
-                    ? Color(red: 0.08, green: 0.04, blue: 0.12)
-                    : (colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.6)))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: isStrangerTheme
-                                    ? [Color(red: 1.0, green: 0.2, blue: 0.3).opacity(0.3), Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.2)]
-                                    : (colorScheme == .dark
-                                        ? [.white.opacity(0.2), .clear]
-                                        : [.white.opacity(0.8), .clear]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
-        )
+        .glassEffectRounded(cornerRadius: 16)
     }
     
     // MARK: - 计算属性
@@ -387,22 +366,20 @@ struct StatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(
-                            LinearGradient(
-                                colors: colorScheme == .dark
-                                    ? [.white.opacity(0.2), .clear]
-                                    : [.white.opacity(0.8), .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
+        .glassEffectRounded(cornerRadius: 14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: colorScheme == .dark
+                            ? [.white.opacity(0.22), .clear]
+                            : [.white.opacity(0.55), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
                 )
+                .allowsHitTesting(false)
         )
     }
 }

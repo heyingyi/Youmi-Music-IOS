@@ -1994,7 +1994,7 @@ struct PlaylistSheetView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color(.systemGroupedBackground))
+                .background(.ultraThinMaterial)
                 
                 if audioPlayer.playlist.isEmpty {
                     VStack(spacing: 16) {
@@ -2989,7 +2989,7 @@ struct LikeOptionsSheet: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
-                .background(Color(.systemGray6))
+                .background(.ultraThinMaterial)
                 
                 Divider()
                 

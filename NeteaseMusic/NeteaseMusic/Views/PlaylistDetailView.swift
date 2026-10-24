@@ -45,7 +45,10 @@ struct PlaylistDetailView: View {
                 }
             }
             .coordinateSpace(name: "playlistScroll")
-            .background(backgroundColor)
+            .background {
+                ThemedBackground()
+                    .environmentObject(themeManager)
+            }
             .ignoresSafeArea(edges: .top)
 
             topBar
@@ -322,7 +325,7 @@ struct PlaylistDetailView: View {
         .padding(.bottom, 120)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(backgroundColor)
+                .fill(.ultraThinMaterial)
                 .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: -2)
         )
         .padding(.top, -24)

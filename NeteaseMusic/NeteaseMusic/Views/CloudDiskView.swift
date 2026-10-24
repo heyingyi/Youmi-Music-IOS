@@ -13,52 +13,52 @@ struct CloudDiskView: View {
     @State private var isLoadingMore = false
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // 头部信息
-                cloudDiskHeader
-                
-                // 播放全部按钮
-                playAllButton
-                
-                if isLoading {
-                    ProgressView()
-                        .padding(.top, 40)
-                } else if songs.isEmpty {
-                    emptyView
-                } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                            CloudDiskSongRow(song: song, index: index + 1) {
-                                playSong(song, index: index)
-                            }
-                            if index < songs.count - 1 {
-                                Divider().padding(.leading, 60)
-                            }
-                        }
-                        
-                        // 加载更多
-                        if hasMore {
-                            Button(action: { Task { await loadMore() } }) {
-                                if isLoadingMore {
-                                    ProgressView()
-                                        .padding(.vertical, 20)
-                                } else {
-                                    Text("加载更多")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondary)
-                                        .padding(.vertical, 20)
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            ScrollView {
+                VStack(spacing: 0) {
+                    cloudDiskHeader
+                    playAllButton
+
+                    if isLoading {
+                        ProgressView()
+                            .padding(.top, 40)
+                    } else if songs.isEmpty {
+                        emptyView
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                                CloudDiskSongRow(song: song, index: index + 1) {
+                                    playSong(song, index: index)
+                                }
+                                if index < songs.count - 1 {
+                                    Divider().padding(.leading, 60)
                                 }
                             }
-                            .disabled(isLoadingMore)
+
+                            if hasMore {
+                                Button(action: { Task { await loadMore() } }) {
+                                    if isLoadingMore {
+                                        ProgressView()
+                                            .padding(.vertical, 20)
+                                    } else {
+                                        Text("加载更多")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.secondary)
+                                            .padding(.vertical, 20)
+                                    }
+                                }
+                                .disabled(isLoadingMore)
+                            }
                         }
+                        .padding(.horizontal)
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.bottom, 100)
             }
-            .padding(.bottom, 100)
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("我的云盘")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadCloudDisk() }
@@ -126,6 +126,7 @@ struct CloudDiskView: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
+        .frame(maxWidth: .infinity, minHeight: 320)
         .padding(.top, 60)
     }
     

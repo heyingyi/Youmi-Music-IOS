@@ -24,8 +24,6 @@ struct ArtistDetailView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemBackground) }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.secondarySystemBackground) }
     
     // 过滤后的歌曲列表
     private var filteredSongs: [Track] {
@@ -77,7 +75,7 @@ struct ArtistDetailView: View {
                     .padding(.bottom, 120)
                     .background(
                         RoundedRectangle(cornerRadius: 24)
-                            .fill(backgroundColor)
+                            .fill(.ultraThinMaterial)
                     )
                 }
             }
@@ -94,7 +92,7 @@ struct ArtistDetailView: View {
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(scrollOffset < -150 ? .visible : .hidden, for: .navigationBar)
-        .toolbarBackground(backgroundColor.opacity(0.95), for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: { dismiss() }) {
@@ -295,7 +293,7 @@ struct ArtistDetailView: View {
                     }
                 }
                 .padding(10)
-                .background(cardBackground)
+                .background(.ultraThinMaterial)
                 .cornerRadius(10)
                 .padding(.horizontal, 20)
                 .transition(.move(edge: .top).combined(with: .opacity))
@@ -338,8 +336,7 @@ struct ArtistDetailView: View {
                         }
                     }
                 }
-                .background(cardBackground)
-                .cornerRadius(16)
+                .glassEffectRounded(cornerRadius: 16)
                 .padding(.horizontal, 16)
             }
         }
@@ -392,7 +389,7 @@ struct ArtistDetailView: View {
     // MARK: - 加载中遮罩
     private var loadingOverlay: some View {
         ZStack {
-            backgroundColor.opacity(0.8)
+            Color.black.opacity(0.35)
             VStack(spacing: 16) {
                 ProgressView()
                     .scaleEffect(1.2)
@@ -569,11 +566,8 @@ struct ArtistAlbumsView: View {
     private let pageSize = 30
     private let musicService = MusicService.shared
 
-    private var isStrangerTheme: Bool { themeManager.isStrangerTheme }
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemBackground) }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : Color(.secondarySystemBackground) }
     private var filteredAlbums: [AlbumDetail] {
         let keyword = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return albums }
@@ -582,7 +576,8 @@ struct ArtistAlbumsView: View {
 
     var body: some View {
         ZStack {
-            backgroundColor.ignoresSafeArea()
+            ThemedBackground()
+                .environmentObject(themeManager)
 
             ScrollView {
                 LazyVStack(spacing: 12) {
@@ -607,6 +602,7 @@ struct ArtistAlbumsView: View {
                 .padding(.vertical, 12)
             }
         }
+        .immersiveNavigationChrome()
         .navigationTitle("\(artistName) · 专辑")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索专辑")
@@ -646,8 +642,7 @@ struct ArtistAlbumsView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(cardBackground)
-        .cornerRadius(12)
+        .glassEffectRounded(cornerRadius: 12)
     }
 
     private func loadInitial() async {

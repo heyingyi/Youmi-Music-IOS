@@ -12,7 +12,7 @@ struct ToplistView: View {
     private var isStrangerTheme: Bool { themeManager.isStrangerTheme }
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
-    private var backgroundColor: Color { isStrangerTheme ? Color(red: 0.05, green: 0.02, blue: 0.08) : Color(.systemGroupedBackground) }
+
     
     // 官方榜单 ID
     private let officialIds = [19723756, 3779629, 2884035, 3778678] // 飙升榜、新歌榜、原创榜、热歌榜
@@ -26,22 +26,24 @@ struct ToplistView: View {
     }
     
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 28) {
-                // 官方榜
-                if !officialToplists.isEmpty {
-                    officialSection
+        ZStack {
+            ThemedBackground()
+                .environmentObject(themeManager)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 28) {
+                    if !officialToplists.isEmpty {
+                        officialSection
+                    }
+
+                    if !globalToplists.isEmpty {
+                        globalSection
+                    }
                 }
-                
-                // 全球榜
-                if !globalToplists.isEmpty {
-                    globalSection
-                }
+                .padding(.top, 16)
+                .padding(.bottom, 100)
             }
-            .padding(.top, 16)
-            .padding(.bottom, 100)
         }
-        .background(ThemedBackground().environmentObject(themeManager))
+        .immersiveNavigationChrome()
         .navigationTitle("排行榜")
         .navigationBarTitleDisplayMode(.large)
         .task {
@@ -134,7 +136,6 @@ struct ToplistView: View {
                 .foregroundColor(secondaryTextColor)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(backgroundColor)
     }
     
     // MARK: - Error View
@@ -176,7 +177,6 @@ struct ToplistView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(backgroundColor)
     }
     
     // MARK: - Load Data
@@ -251,11 +251,8 @@ struct OfficialToplistCard: View {
                 .foregroundColor(.gray.opacity(0.5))
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
-        )
+        .glassEffectRounded(cornerRadius: 16)
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
     }
 }
 

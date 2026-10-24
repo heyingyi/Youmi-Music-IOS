@@ -339,7 +339,7 @@ struct MiniPlayerView: View {
                 .allowsHitTesting(false)
         } else {
             RoundedRectangle(cornerRadius: 22)
-                .fill(Color(.secondarySystemBackground).opacity(0.96))
+                .fill(Color(.secondarySystemBackground).opacity(themeManager.showsCustomWallpaper ? 0.72 : 0.96))
                 .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: 8)
                 .allowsHitTesting(false)
         }

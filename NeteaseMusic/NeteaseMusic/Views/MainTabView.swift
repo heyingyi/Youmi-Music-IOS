@@ -107,6 +107,9 @@ struct MainTabView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .background {
+            CustomWallpaperLayer()
+        }
         .fullScreenCover(isPresented: $showPlayer) {
             PlayerView()
         }
@@ -188,22 +191,19 @@ struct MainTabView: View {
     // MARK: - 旧版 TabView (iOS 26 以下)
     private var legacyTabView: some View {
         ZStack {
-            // 主题背景 - 只渲染一次
+            CustomWallpaperLayer()
             themedMainBackground
-                .ignoresSafeArea()
-            
-            // 内容区域 - 使用 TabContentContainer 实现零卡顿切换
             TabContentContainer(selectedTab: selectedTab, loadedTabs: $loadedTabs)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            LegacyCustomTabBar(
-                selectedTab: Binding(
-                    get: { selectedTab.rawValue },
-                    set: { selectedTab = TabSelection(rawValue: $0) ?? .home }
-                ),
-                isSearchMode: $isSearchMode,
-                animation: animation
-            )
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    LegacyCustomTabBar(
+                        selectedTab: Binding(
+                            get: { selectedTab.rawValue },
+                            set: { selectedTab = TabSelection(rawValue: $0) ?? .home }
+                        ),
+                        isSearchMode: $isSearchMode,
+                        animation: animation
+                    )
+                }
         }
         .overlay {
             // 隐藏的键盘预热 TextField
@@ -230,8 +230,12 @@ struct MainTabView: View {
     // MARK: - 主题感知主背景
     @ViewBuilder
     private var themedMainBackground: some View {
-        if themeManager.themeStyle == .strangerThings {
+        if themeManager.showsCustomWallpaper {
+            Color.clear
+        } else if themeManager.themeStyle == .strangerThings {
             StrangerThingsBackground()
+        } else {
+            LiquidGlassBackground()
         }
     }
     
@@ -866,6 +870,11 @@ struct iOS26SearchView: View {
                     searchHomeContent
                 }
             }
+            .background {
+                ThemedBackground()
+                    .environmentObject(ThemeManager.shared)
+            }
+            .immersiveNavigationChrome()
             .navigationTitle("搜索")
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "艺人、歌曲、歌词以及更多内容")
@@ -1554,6 +1563,7 @@ private struct TabContentContainer: View {
                 NavigationStack {
                     DiscoverView()
                 }
+                .background(Color.clear)
             }
             .zIndex(selectedTab == .home ? 1 : 0)
             
@@ -1561,6 +1571,7 @@ private struct TabContentContainer: View {
                 NavigationStack {
                     NewDiscoveryView()
                 }
+                .background(Color.clear)
             }
             .zIndex(selectedTab == .discover ? 1 : 0)
             
@@ -1568,6 +1579,7 @@ private struct TabContentContainer: View {
                 NavigationStack {
                     AppleMusicView()
                 }
+                .background(Color.clear)
             }
             .zIndex(selectedTab == .appleMusic ? 1 : 0)
             
@@ -1575,10 +1587,10 @@ private struct TabContentContainer: View {
                 NavigationStack {
                     LibraryView()
                 }
+                .background(Color.clear)
             }
             .zIndex(selectedTab == .library ? 1 : 0)
         }
-        .clipped()
         .onChangeCompat(of: selectedTab) { _, newTab in
             loadedTabs.insert(newTab)
         }

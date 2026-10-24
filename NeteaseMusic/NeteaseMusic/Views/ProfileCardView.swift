@@ -11,7 +11,7 @@ struct ProfileCardView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .red }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15).opacity(0.9) : (colorScheme == .dark ? Color(.systemGray6) : .white) }
+
     
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -38,15 +38,11 @@ struct ProfileCardView: View {
                 loadingView
             }
         }
-        .background(
-            Group {
-                if isStrangerTheme {
-                    StrangerThingsBackground()
-                } else {
-                    Color(.systemGroupedBackground)
-                }
-            }
-        )
+        .background {
+            ThemedBackground()
+                .environmentObject(themeManager)
+        }
+        .immersiveNavigationChrome()
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await authViewModel.fetchCurrentUser()
@@ -239,11 +235,8 @@ struct ProfileCardView: View {
             statItem(value: profile.eventCount ?? 0, title: "动态")
         }
         .padding(.vertical, 20)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(cardBackground)
-                .shadow(color: isStrangerTheme ? accentColor.opacity(0.2) : .black.opacity(0.08), radius: 20, x: 0, y: 10)
-        )
+        .glassEffectRounded(cornerRadius: 20)
+        .shadow(color: isStrangerTheme ? accentColor.opacity(0.2) : .black.opacity(0.08), radius: 20, x: 0, y: 10)
         .overlay(
             Group {
                 if isStrangerTheme {
@@ -324,10 +317,7 @@ struct ProfileCardView: View {
     
     private func detailCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(cardBackground)
-            )
+            .glassEffectRounded(cornerRadius: 16)
             .overlay(
                 Group {
                     if isStrangerTheme {
@@ -375,10 +365,7 @@ struct ProfileCardView: View {
                 Spacer()
             }
             .padding(.vertical, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(cardBackground)
-            )
+            .glassEffectRounded(cornerRadius: 16)
             .overlay(
                 Group {
                     if isStrangerTheme {

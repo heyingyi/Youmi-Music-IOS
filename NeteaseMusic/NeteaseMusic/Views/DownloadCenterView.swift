@@ -13,24 +13,25 @@ struct DownloadCenterView: View {
     private var textColor: Color { themeManager.textColor }
     private var secondaryTextColor: Color { themeManager.secondaryTextColor }
     private var accentColor: Color { isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .green }
-    private var cardBackground: Color { isStrangerTheme ? Color(red: 0.08, green: 0.04, blue: 0.12) : (colorScheme == .dark ? Color.white.opacity(0.08) : Color.white) }
+
     
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    // 下载中的任务
-                    if !downloadService.downloadQueue.isEmpty {
-                        downloadingSection
+            ZStack {
+                ThemedBackground()
+                    .environmentObject(themeManager)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        if !downloadService.downloadQueue.isEmpty {
+                            downloadingSection
+                        }
+                        downloadedSection
                     }
-                    
-                    // 已下载的歌曲
-                    downloadedSection
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 100)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 100)
             }
-            .background(ThemedBackground().environmentObject(themeManager))
+            .immersiveNavigationChrome()
             .navigationTitle("下载中心")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -73,10 +74,7 @@ struct DownloadCenterView: View {
                     }
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(cardBackground)
-            )
+            .glassEffectRounded(cornerRadius: 12)
         }
     }
     
@@ -112,10 +110,7 @@ struct DownloadCenterView: View {
                         }
                     }
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(cardBackground)
-                )
+                .glassEffectRounded(cornerRadius: 12)
             }
         }
     }
@@ -137,10 +132,7 @@ struct DownloadCenterView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(cardBackground)
-        )
+        .glassEffectRounded(cornerRadius: 12)
     }
 }
 
