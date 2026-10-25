@@ -533,14 +533,10 @@ private struct ImmersiveNavigationChrome: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if themeManager.showsCustomWallpaper {
+        if themeManager.showsCustomWallpaper || themeManager.liquidGlassEnabled {
             content
                 .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
-        } else if themeManager.liquidGlassEnabled {
-            content
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(.automatic, for: .navigationBar)
         } else {
             content
         }

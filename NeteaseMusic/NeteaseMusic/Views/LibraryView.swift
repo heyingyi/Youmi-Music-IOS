@@ -159,7 +159,7 @@ struct LibraryView: View {
     
     // MARK: - 网易Max 云端音乐区域
     private var cloudMusicSection: some View {
-        LiquidGlassSection(title: "网易Max", showsBackground: false) {
+        LiquidGlassSection(title: "网易Max") {
             if isLoadingCloud {
                 GridSkeletonView(
                     count: 6,
@@ -237,7 +237,7 @@ struct LibraryView: View {
     private var liquidGlassLibraryContent: some View {
         VStack(spacing: 20) {
             // 本地音乐库
-            LiquidGlassSection(title: "本地音乐库", showsBackground: false) {
+            LiquidGlassSection(title: "本地音乐库") {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12),
