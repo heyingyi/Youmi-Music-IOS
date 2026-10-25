@@ -191,6 +191,11 @@ class MusicService {
         let response: NewAlbumResponse = try await fetch("album/new?area=\(area)&limit=\(limit)&offset=\(offset)")
         return response.albums ?? []
     }
+
+    func getTopArtists(limit: Int = 20, offset: Int = 0) async throws -> [SearchArtistResult] {
+        let response: TopArtistsResponse = try await fetch("top/artists?limit=\(limit)&offset=\(offset)")
+        return response.artists ?? []
+    }
     
     /// 获取推荐新音乐（首页推荐新歌）
     func getPersonalizedNewSong(limit: Int = 10) async throws -> [PersonalizedSong] {

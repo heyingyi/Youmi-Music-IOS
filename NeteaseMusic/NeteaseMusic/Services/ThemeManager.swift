@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import ImageIO
 
 // MARK: - 外观模式
 enum AppearanceMode: String, CaseIterable, Identifiable {
@@ -272,26 +273,46 @@ class ThemeManager: ObservableObject {
 
     private static func saveBackgroundImage(_ image: UIImage) {
         let resized = image.preparedForBackground()
-        guard let data = resized.jpegData(compressionQuality: 0.82) else { return }
+        guard let data = resized.jpegData(compressionQuality: 0.72) else { return }
         try? data.write(to: backgroundFileURL, options: .atomic)
     }
 
     private static func loadBackgroundImage() -> UIImage? {
         guard let data = try? Data(contentsOf: backgroundFileURL) else { return nil }
-        return UIImage(data: data)
+        return UIImage.downsample(data: data, maxPixelSize: 1170) ?? UIImage(data: data)?.preparedForBackground()
     }
 }
 
 private extension UIImage {
-    func preparedForBackground(maxDimension: CGFloat = 1800) -> UIImage {
+    func preparedForBackground(maxDimension: CGFloat = 1170) -> UIImage {
         let longest = max(size.width, size.height)
         guard longest > maxDimension else { return self }
         let scale = maxDimension / longest
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: newSize))
         }
+    }
+
+    static func downsample(data: Data, maxPixelSize: CGFloat) -> UIImage? {
+        let sourceOptions: [CFString: Any] = [kCGImageSourceShouldCache: false]
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions as CFDictionary) else {
+            return nil
+        }
+        let downsampleOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
     }
 }
 

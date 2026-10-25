@@ -399,6 +399,12 @@ struct NewAlbum: Codable, Identifiable {
     }
 }
 
+struct TopArtistsResponse: Codable {
+    let code: Int
+    let artists: [SearchArtistResult]?
+    let more: Bool?
+}
+
 // MARK: - 推荐新音乐响应
 struct PersonalizedNewSongResponse: Codable {
     let code: Int

@@ -14,6 +14,8 @@ struct DiscoverView: View {
     @State private var scrollOffset: CGFloat = 0
     @State private var showQuickMenu = false
     @State private var recentlyPlayed: [Track] = []
+    @State private var newAlbums: [NewAlbum] = []
+    @State private var topArtists: [SearchArtistResult] = []
     
     private let musicService = MusicService.shared
     private let storageService = LocalStorageService.shared
@@ -54,6 +56,15 @@ struct DiscoverView: View {
                     quickAccessSection
                         .staggeredEntrance(index: 1)
 
+                    liquidGlassPlaylistSection
+                        .staggeredEntrance(index: 2)
+
+                    newAlbumsSection
+                        .staggeredEntrance(index: 3)
+
+                    recommendedArtistsSection
+                        .staggeredEntrance(index: 4)
+
                     if isLoading && recentlyPlayed.isEmpty {
                         VStack(alignment: .leading, spacing: 20) {
                             HStack(spacing: 8) {
@@ -65,11 +76,8 @@ struct DiscoverView: View {
                         }
                     } else {
                         recentlyPlayedSection
-                            .staggeredEntrance(index: 2)
+                            .staggeredEntrance(index: 5)
                     }
-
-                    liquidGlassPlaylistSection
-                        .staggeredEntrance(index: 3)
                 }
                 .padding(.bottom, 120)
             }
@@ -401,6 +409,84 @@ struct DiscoverView: View {
             }
         }
     }
+
+    private var newAlbumsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("新碟上线")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+
+            if isLoading && newAlbums.isEmpty {
+                HorizontalCardSkeletonView(count: 4)
+            } else if !newAlbums.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(newAlbums.prefix(12), id: \.id) { album in
+                            NavigationLink(destination: AlbumDetailView(
+                                albumId: album.id,
+                                albumName: album.name
+                            )) {
+                                AppleMusicPlaylistCard(
+                                    imageUrl: album.picUrl.flatMap { URL(string: $0) },
+                                    title: album.name,
+                                    subtitle: album.artistName
+                                )
+                            }
+                            .buttonStyle(LiquidGlassButtonStyle())
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+        }
+    }
+
+    private var recommendedArtistsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("歌手")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(.primary)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+
+            if isLoading && topArtists.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 18) {
+                        ForEach(0..<6, id: \.self) { _ in
+                            VStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color(.systemGray5))
+                                    .frame(width: 72, height: 72)
+                                SkeletonBlock(width: 56, height: 12, cornerRadius: 4)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            } else if !topArtists.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 18) {
+                        ForEach(topArtists.prefix(16), id: \.id) { artist in
+                            NavigationLink(destination: ArtistDetailView(
+                                artistId: artist.id,
+                                artistName: artist.name
+                            )) {
+                                RecommendedArtistCard(artist: artist)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+        }
+    }
     
     // MARK: - 液态玻璃加载视图
     private var liquidGlassLoadingView: some View {
@@ -512,25 +598,29 @@ struct DiscoverView: View {
         isLoading = true
         errorMessage = nil
         
+        banners = staticBanners
+        recentlyPlayed = storageService.getHistory()
+
+        async let playlistsTask = musicService.getPersonalized(limit: 12)
+        async let albumsTask = musicService.getNewAlbums(area: "ALL", limit: 12)
+        async let artistsTask = musicService.getTopArtists(limit: 16)
+
         do {
-            playlists = try await musicService.getPersonalized(limit: 12)
-            banners = staticBanners
-            
-            // 加载播放历史
-            await MainActor.run {
-                recentlyPlayed = storageService.getHistory()
-            }
-            
-            #if DEBUG
-            print("Loaded \(playlists.count) playlists, \(banners.count) banners, \(recentlyPlayed.count) history")
-            #endif
+            playlists = try await playlistsTask
         } catch {
             #if DEBUG
-            print("Load error: \(error)")
+            print("Load playlists error: \(error)")
             #endif
-            errorMessage = "\(error.localizedDescription)"
+            errorMessage = error.localizedDescription
         }
-        
+
+        newAlbums = (try? await albumsTask) ?? []
+        topArtists = (try? await artistsTask) ?? []
+
+        #if DEBUG
+        print("Loaded \(playlists.count) playlists, \(newAlbums.count) albums, \(topArtists.count) artists, \(recentlyPlayed.count) history")
+        #endif
+
         isLoading = false
     }
 }
@@ -682,6 +772,41 @@ struct RecentlyPlayedCard: View {
             Image(systemName: "music.note")
                 .font(.system(size: 40, weight: .light))
                 .foregroundColor(.secondary.opacity(0.5))
+        }
+    }
+}
+
+struct RecommendedArtistCard: View {
+    let artist: SearchArtistResult
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if let urlString = artist.avatarUrl, let url = URL(string: urlString) {
+                CachedAsyncImage(url: url, targetSize: CGSize(width: 72, height: 72)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle()
+                        .fill(Color(.systemGray5))
+                }
+                .frame(width: 72, height: 72)
+                .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color(.systemGray5))
+                    .frame(width: 72, height: 72)
+                    .overlay {
+                        Image(systemName: "person.fill")
+                            .foregroundColor(.secondary)
+                    }
+            }
+
+            Text(artist.name)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .frame(width: 76)
         }
     }
 }

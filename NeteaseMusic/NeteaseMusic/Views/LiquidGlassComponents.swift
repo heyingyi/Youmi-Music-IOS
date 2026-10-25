@@ -495,29 +495,20 @@ struct CustomWallpaperLayer: View {
 
     var body: some View {
         if themeManager.showsCustomWallpaper, let image = themeManager.customBackgroundImage {
-            Color.clear
-                .overlay {
-                    GeometryReader { geo in
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipped()
-                            .opacity(themeManager.backgroundOpacity)
-                    }
-                }
+            Image(uiImage: image)
+                .resizable()
+                .interpolation(.medium)
+                .scaledToFill()
+                .opacity(themeManager.backgroundOpacity)
                 .overlay {
                     Color(colorScheme == .dark ? .black : .white)
-                        .opacity(0.06 + themeManager.backgroundFrost * 0.18)
+                        .opacity(0.05 + themeManager.backgroundFrost * 0.28)
                 }
-                .overlay {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(themeManager.backgroundFrost)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .clipped()
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 }

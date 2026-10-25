@@ -389,6 +389,14 @@ final class KumoneMusicClient {
             ], crypto: "weapi")
             return try pass(json)
 
+        case "top/artists":
+            let json = try await request("/api/artist/top", payload: [
+                "offset": intQuery(query, "offset", 0),
+                "total": true,
+                "limit": intQuery(query, "limit", 50)
+            ], crypto: "weapi")
+            return try pass(json)
+
         case "personalized/newsong":
             let json = try await request("/api/personalized/newsong", payload: [
                 "type": "recommend",
