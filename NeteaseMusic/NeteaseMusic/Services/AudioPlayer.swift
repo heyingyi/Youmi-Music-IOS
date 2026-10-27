@@ -588,13 +588,13 @@ class AudioPlayer: ObservableObject {
             guard let url = URL(string: urlString) else {
                 throw AudioPlayerError.invalidURL
             }
+            let playURL = NeteaseCDNHost.preferred(for: url)
 
             await MainActor.run {
                 bufferingState = .buffering(progress: 0.3)
             }
 
-            // 使用 AVPlayer 播放
-            await setupPlayer(with: url, track: track)
+            await setupPlayer(with: playURL, track: track)
 
         } catch {
             await handlePlaybackError(error, track: track)
@@ -695,6 +695,9 @@ class AudioPlayer: ObservableObject {
                     guard let self = self else { return }
                     switch status {
                     case .readyToPlay:
+                        if let itemURL = (self.playerItem?.asset as? AVURLAsset)?.url {
+                            NeteaseCDNHost.markReachable(itemURL)
+                        }
                         self.isLoading = false
                         self.bufferingState = .ready
                         // 只有当 duration 为 0 时才使用流媒体报告的时长
@@ -706,6 +709,12 @@ class AudioPlayer: ObservableObject {
                         }
                     case .failed:
                         if let error = self.playerItem?.error {
+                            if let itemURL = (self.playerItem?.asset as? AVURLAsset)?.url,
+                               let twin = NeteaseCDNHost.failover(from: itemURL, after: error),
+                               let current = self.currentTrack {
+                                Task { await self.setupPlayer(with: twin, track: current) }
+                                return
+                            }
                             self.handlePlaybackFailure(error: error)
                         }
                     default:
@@ -786,7 +795,13 @@ class AudioPlayer: ObservableObject {
         print(" 播放器错误: \(error)")
         #endif
 
-        // 如果有当前歌曲，尝试重试
+        if let itemURL = (playerItem?.asset as? AVURLAsset)?.url,
+           let twin = NeteaseCDNHost.failover(from: itemURL, after: error),
+           let track = currentTrack {
+            Task { await setupPlayer(with: twin, track: track) }
+            return
+        }
+
         if let track = currentTrack {
             Task {
                 await handlePlaybackError(error, track: track)
@@ -1684,40 +1699,15 @@ class AudioPlayer: ObservableObject {
     
     // MARK: - 获取歌曲URL（多级缓存）
     private func getSongUrl(id: Int) async throws -> String {
-        // 先尝试普通音源
         if let url = try? await getNeteaseUrl(id: id) {
             return url
         }
-        // 回退：尝试网易云官方接口（支持云盘歌曲）
-        return try await getCloudDiskSongUrl(id: id)
-    }
-    
-    // 获取云盘歌曲URL（通过官方API带cookie）
-    private func getCloudDiskSongUrl(id: Int) async throws -> String {
-        let quality = sourceConfig.quality
-        let br: Int
-        switch quality {
-        case .standard: br = 128000
-        case .exhigh: br = 320000
-        default: br = 999000
+        if let custom = await CustomAudioSourceService.resolve(id: id, quality: sourceConfig.quality.rawValue),
+           !custom.isEmpty {
+            preloadedURLs[id] = custom
+            songCache.cacheUrl(songId: id, url: custom, quality: sourceConfig.quality.rawValue)
+            return custom
         }
-        
-        guard let url = URL(string: "\(APIConfig.baseURL)/song/url?id=\(id)&br=\(br)") else {
-            throw AudioPlayerError.invalidURL
-        }
-        
-        let (data, _) = try await NetworkService.shared.requestWithCookie(url: url, method: "GET")
-        let response = try JSONDecoder().decode(SongUrlResponse.self, from: data)
-        
-        if let songUrl = response.data?.first?.url, !songUrl.isEmpty {
-            #if DEBUG
-            print("☁️ 云盘歌曲URL获取成功: \(id)")
-            #endif
-            preloadedURLs[id] = songUrl
-            songCache.cacheUrl(songId: id, url: songUrl, quality: quality.rawValue)
-            return songUrl
-        }
-        
         throw AudioPlayerError.noAvailableSource
     }
     

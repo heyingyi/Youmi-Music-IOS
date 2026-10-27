@@ -30,6 +30,8 @@ struct SettingsView: View {
             VStack(spacing: 20) {
                 // 音源设置
                 liquidGlassMusicSourceSection
+
+                liquidGlassCustomSourceSection
                 
                 // 播放设置
                 liquidGlassPlaybackSection
@@ -136,6 +138,51 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 16)
+            }
+        }
+    }
+
+    private var liquidGlassCustomSourceSection: some View {
+        themedSection(title: "自定义音源") {
+            VStack(alignment: .leading, spacing: 0) {
+                LiquidGlassToggleRow(
+                    title: "启用自定义音源",
+                    subtitle: "官方地址失败后使用你填写的接口",
+                    icon: "link",
+                    iconColor: .blue,
+                    isOn: $sourceConfig.enableCustomSource
+                )
+
+                if sourceConfig.enableCustomSource {
+                    themedDivider
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("接口模板")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondary)
+                        TextField("https://example.com/url?id={id}&br={br}", text: $sourceConfig.customSourceTemplate)
+                            .font(.system(size: 14, design: .monospaced))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .padding(10)
+                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+
+                        Text("JSON 路径")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.secondary)
+                        TextField("url 或 data.url", text: $sourceConfig.customSourceJSONPath)
+                            .font(.system(size: 14, design: .monospaced))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .padding(10)
+                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+
+                        Text("占位符：{id} {songId} {quality} {br} {source}")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
             }
         }
     }

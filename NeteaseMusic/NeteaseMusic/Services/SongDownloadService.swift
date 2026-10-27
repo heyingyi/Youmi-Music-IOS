@@ -161,11 +161,15 @@ final class SongDownloadService: ObservableObject {
 
             updateProgress(trackId: track.id, progress: 0.05)
 
-            guard let audioUrlString = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality),
-                  !audioUrlString.isEmpty,
-                  let audioUrl = URL(string: audioUrlString) else {
+            var audioUrlString = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality)
+            if audioUrlString == nil || audioUrlString?.isEmpty == true {
+                audioUrlString = await CustomAudioSourceService.resolve(id: track.id, quality: quality)
+            }
+            guard let audioUrlString, !audioUrlString.isEmpty,
+                  let rawAudioURL = URL(string: audioUrlString) else {
                 throw DownloadError.noAudioURL
             }
+            let audioUrl = NeteaseCDNHost.preferred(for: rawAudioURL)
             
             #if DEBUG
             print("📥 音频URL: \(audioUrlString.prefix(80))...")

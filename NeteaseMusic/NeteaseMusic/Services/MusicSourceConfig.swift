@@ -61,6 +61,9 @@ class MusicSourceConfig: ObservableObject {
         static let apiKey = "music_api_key"
         static let cookie = "music_cookie"
         static let quality = "music_quality"
+        static let enableCustomSource = "music_enable_custom_source"
+        static let customSourceTemplate = "music_custom_source_template"
+        static let customSourceJSONPath = "music_custom_source_json_path"
     }
     
     // 兼容旧播放地址字段；实际取流由 KumoneMusicClient 直连网易云
@@ -90,6 +93,27 @@ class MusicSourceConfig: ObservableObject {
             onQualityChanged?()
         }
     }
+
+    /// 官方地址失败后，是否回退到用户自定义音源
+    @Published var enableCustomSource: Bool {
+        didSet {
+            userDefaults.set(enableCustomSource, forKey: Keys.enableCustomSource)
+        }
+    }
+
+    /// 自定义音源 URL 模板，支持 {id} {songId} {quality} {br} {source}
+    @Published var customSourceTemplate: String {
+        didSet {
+            userDefaults.set(customSourceTemplate, forKey: Keys.customSourceTemplate)
+        }
+    }
+
+    /// 从 JSON 里取播放地址的路径，例如 url 或 data.url
+    @Published var customSourceJSONPath: String {
+        didSet {
+            userDefaults.set(customSourceJSONPath, forKey: Keys.customSourceJSONPath)
+        }
+    }
     
     /// API URL
     var apiURL: String {
@@ -113,6 +137,10 @@ class MusicSourceConfig: ObservableObject {
         } else {
             self.quality = .lossless
         }
+
+        self.enableCustomSource = userDefaults.object(forKey: Keys.enableCustomSource) as? Bool ?? false
+        self.customSourceTemplate = userDefaults.string(forKey: Keys.customSourceTemplate) ?? ""
+        self.customSourceJSONPath = userDefaults.string(forKey: Keys.customSourceJSONPath) ?? "url"
     }
     
     /// 重置为默认值

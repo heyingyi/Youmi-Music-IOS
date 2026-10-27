@@ -82,6 +82,8 @@
 		STRANGERTHINGS001BUILD1 /* StrangerThingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = STRANGERTHINGS001FILE11 /* StrangerThingsComponents.swift */; };
 		BEANSAPI01BUILD11111111 /* NetEaseCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */; };
 		BEANSAPI02BUILD11111111 /* KumoneMusicClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */; };
+		CUSTOMAUDIO01BUILD11111 /* CustomAudioSourceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CUSTOMAUDIO01FILE111111 /* CustomAudioSourceService.swift */; };
+		NETEASECDN01BUILD111111 /* NeteaseCDNHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = NETEASECDN01FILE1111111 /* NeteaseCDNHost.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -189,6 +191,8 @@
 		BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetEaseCrypto.swift; sourceTree = "<group>"; };
 		BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KumoneMusicClient.swift; sourceTree = "<group>"; };
 		BEANSAPI03FILE111111111 /* NeteaseMusic-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NeteaseMusic-Bridging-Header.h"; sourceTree = "<group>"; };
+		CUSTOMAUDIO01FILE111111 /* CustomAudioSourceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomAudioSourceService.swift; sourceTree = "<group>"; };
+		NETEASECDN01FILE1111111 /* NeteaseCDNHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeteaseCDNHost.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -236,6 +240,8 @@
 				3FA469F456D5A5819EB82C10 /* APICache.swift */,
 				B24676E0A4BC078A430F7920 /* APIConfig.swift */,
 				BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */,
+				CUSTOMAUDIO01FILE111111 /* CustomAudioSourceService.swift */,
+				NETEASECDN01FILE1111111 /* NeteaseCDNHost.swift */,
 				BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */,
 				A3B3F4CFF92096C444FB808F /* AudioPlayer.swift */,
 				2CA1B80932941136A7A71416 /* AuthService.swift */,
@@ -565,6 +571,8 @@
 				APPLEMUSIC02BUILD11111 /* AppleMusicView.swift in Sources */,
 				BEANSAPI01BUILD11111111 /* NetEaseCrypto.swift in Sources */,
 				BEANSAPI02BUILD11111111 /* KumoneMusicClient.swift in Sources */,
+				CUSTOMAUDIO01BUILD11111 /* CustomAudioSourceService.swift in Sources */,
+				NETEASECDN01BUILD111111 /* NeteaseCDNHost.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

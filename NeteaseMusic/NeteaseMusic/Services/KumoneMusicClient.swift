@@ -19,7 +19,8 @@ final class KumoneMusicClient {
         let config = URLSessionConfiguration.default
         config.httpShouldSetCookies = false
         config.httpCookieAcceptPolicy = .never
-        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForRequest = 8
+        config.timeoutIntervalForResource = 12
         session = URLSession(configuration: config)
 
         if let data = UserDefaults.standard.data(forKey: cookiesKey),
@@ -110,7 +111,7 @@ final class KumoneMusicClient {
     func songURL(id: Int, level: String) async throws -> String? {
         let info = try await songURLInfo(ids: [id], level: level)
         if let url = info[id], !url.isEmpty { return url }
-        return try? await pyncmdURL(id: id)
+        return nil
     }
 
     func songURLInfo(ids: [Int], level: String) async throws -> [Int: String] {
@@ -270,7 +271,7 @@ final class KumoneMusicClient {
         case "playlist/detail":
             let json = try await request("/api/v6/playlist/detail", payload: [
                 "id": intQuery(query, "id"),
-                "n": 100000,
+                "n": 1000,
                 "s": 8
             ], crypto: "weapi")
             return try pass(json)
@@ -278,7 +279,7 @@ final class KumoneMusicClient {
         case "playlist/track/all":
             let json = try await request("/api/v6/playlist/detail", payload: [
                 "id": intQuery(query, "id"),
-                "n": 100000,
+                "n": 1000,
                 "s": 8
             ], crypto: "weapi")
             let playlist = json["playlist"] as? [String: Any] ?? [:]
@@ -332,13 +333,7 @@ final class KumoneMusicClient {
                 "level": levelFromBitrate(br),
                 "encodeType": "flac"
             ]
-            var json = try await request("/api/song/enhance/player/url/v1", payload: payload, crypto: "eapi")
-            let currentURL = ((json["data"] as? [[String: Any]])?.first?["url"] as? String) ?? ""
-            if currentURL.isEmpty, let fallback = try? await pyncmdURL(id: id) {
-                var item = (json["data"] as? [[String: Any]])?.first ?? ["id": id]
-                item["url"] = fallback
-                json["data"] = [item]
-            }
+            let json = try await request("/api/song/enhance/player/url/v1", payload: payload, crypto: "eapi")
             return try pass(json)
 
         case "check/music":
@@ -825,19 +820,6 @@ final class KumoneMusicClient {
             if item["duration"] == nil { item["duration"] = item["dt"] }
             return item
         }
-    }
-
-    private func pyncmdURL(id: Int) async throws -> String? {
-        guard let url = URL(string: "https://music-api.gdstudio.xyz/api.php?types=url&source=netease&id=\(id)&br=320") else {
-            return nil
-        }
-        let (data, _) = try await session.data(from: url)
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let bitrate = object["br"] as? Int, bitrate > 0,
-              let urlValue = object["url"] as? String, !urlValue.isEmpty else {
-            return nil
-        }
-        return urlValue.replacingOccurrences(of: "http://", with: "https://")
     }
 
     private func levelFromBitrate(_ br: Int) -> String {

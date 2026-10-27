@@ -659,8 +659,8 @@ class AppleMusicTokenManager {
     private init() {
         // 配置合理的超时时间
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 15  // 增加到15秒
-        config.timeoutIntervalForResource = 30  // 增加到30秒
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 20
         self.session = URLSession(configuration: config)
     }
 

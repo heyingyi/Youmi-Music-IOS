@@ -33,8 +33,8 @@ class NetworkService {
     
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 20
         self.session = URLSession(configuration: config)
     }
     
