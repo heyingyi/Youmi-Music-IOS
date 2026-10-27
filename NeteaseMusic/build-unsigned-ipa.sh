@@ -29,5 +29,5 @@ fi
 rm -rf Payload
 mkdir -p Payload
 cp -R "$APP" Payload/
-ditto -c -k --sequesterRsrc --keepParent Payload Youmi-Music-unsigned.ipa
-echo "IPA: $ROOT/Youmi-Music-unsigned.ipa"
+ditto -c -k --sequesterRsrc --keepParent Payload Youmi-Music-unsigned-1.2.ipa
+echo "IPA: $ROOT/Youmi-Music-unsigned-1.2.ipa"

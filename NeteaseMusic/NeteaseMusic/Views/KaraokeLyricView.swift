@@ -118,7 +118,7 @@ class AppleMusicKaraokeScrollView: UIView {
     private func startDisplayLink() {
         guard displayLink == nil else { return }
         displayLink = CADisplayLink(target: self, selector: #selector(tick))
-        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60)
+        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
         displayLink?.add(to: .main, forMode: .common)
     }
     
@@ -642,7 +642,7 @@ class KaraokePreviewUIView: UIView {
     private func startDisplayLink() {
         guard displayLink == nil else { return }
         displayLink = CADisplayLink(target: self, selector: #selector(tick))
-        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60)
+        displayLink?.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
         displayLink?.add(to: .main, forMode: .common)
     }
     

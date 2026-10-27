@@ -16,6 +16,7 @@ enum HapticFeedback {
 
 struct LoginView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @ObservedObject private var themeManager = ThemeManager.shared
     @State private var showMainView = false
     @State private var animateGradient = false
     @State private var showContent = false
@@ -75,43 +76,46 @@ struct LoginView: View {
     }
     
     // MARK: - 动态渐变背景
+    @ViewBuilder
     private var animatedBackground: some View {
-        ZStack {
-            // 基础渐变
-            LinearGradient(
-                colors: colorScheme == .dark
-                    ? [Color(red: 0.1, green: 0.05, blue: 0.15), Color(red: 0.05, green: 0.02, blue: 0.1)]
-                    : [Color(red: 1, green: 0.95, blue: 0.97), Color(red: 0.98, green: 0.94, blue: 0.96)],
-                startPoint: animateGradient ? .topLeading : .bottomLeading,
-                endPoint: animateGradient ? .bottomTrailing : .topTrailing
-            )
-            
-            // 装饰圆圈
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.red.opacity(0.3), Color.red.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 200
-                    )
+        if themeManager.showsCustomWallpaper {
+            CustomWallpaperLayer()
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: colorScheme == .dark
+                        ? [Color(red: 0.1, green: 0.05, blue: 0.15), Color(red: 0.05, green: 0.02, blue: 0.1)]
+                        : [Color(red: 1, green: 0.95, blue: 0.97), Color(red: 0.98, green: 0.94, blue: 0.96)],
+                    startPoint: animateGradient ? .topLeading : .bottomLeading,
+                    endPoint: animateGradient ? .bottomTrailing : .topTrailing
                 )
-                .frame(width: 400, height: 400)
-                .offset(x: animateGradient ? 100 : -100, y: animateGradient ? -200 : -150)
-                .blur(radius: 60)
-            
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.pink.opacity(0.25), Color.pink.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 180
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.red.opacity(0.3), Color.red.opacity(0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 200
+                        )
                     )
-                )
-                .frame(width: 360, height: 360)
-                .offset(x: animateGradient ? -80 : 80, y: animateGradient ? 300 : 350)
-                .blur(radius: 50)
+                    .frame(width: 400, height: 400)
+                    .offset(x: animateGradient ? 100 : -100, y: animateGradient ? -200 : -150)
+                    .blur(radius: 60)
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.pink.opacity(0.25), Color.pink.opacity(0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 180
+                        )
+                    )
+                    .frame(width: 360, height: 360)
+                    .offset(x: animateGradient ? -80 : 80, y: animateGradient ? 300 : 350)
+                    .blur(radius: 50)
+            }
         }
     }
     
@@ -151,7 +155,7 @@ struct LoginView: View {
             }
             
             // App 名称
-            Text("Youmi")
+            Text("网易云音乐")
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .foregroundStyle(
                     LinearGradient(
@@ -172,17 +176,16 @@ struct LoginView: View {
         VStack(spacing: 24) {
             // 标题
             VStack(spacing: 8) {
-                Text("欢迎登录")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                Text("使用 Cookie 快速登录您的账号")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            // Cookie 登录表单
-            ModernCookieLoginForm(viewModel: authViewModel)
+                 Text("欢迎登录")
+                     .font(.title2)
+                     .fontWeight(.bold)
+                 
+                 Text("扫码或手机验证码登录网易云账号")
+                     .font(.subheadline)
+                     .foregroundColor(.secondary)
+             }
+             
+             KumoneLoginPanel(viewModel: authViewModel)
         }
         .padding(24)
         .background(
@@ -241,6 +244,7 @@ struct QRCodeImageView: View {
                let uiImage = decodeBase64Image(qrImage) {
                 Image(uiImage: uiImage)
                     .resizable()
+                    .interpolation(.none)
                     .scaledToFit()
             } else {
                 AsyncImage(url: URL(string: qrImage)) { image in
@@ -257,6 +261,161 @@ struct QRCodeImageView: View {
         let base64Data = base64String.replacingOccurrences(of: "data:image/png;base64,", with: "")
         guard let data = Data(base64Encoded: base64Data) else { return nil }
         return UIImage(data: data)
+    }
+}
+
+private enum KumoneLoginMode: String, CaseIterable, Identifiable {
+    case qr = "扫码登录"
+    case sms = "手机验证码"
+
+    var id: String { rawValue }
+}
+
+struct KumoneLoginPanel: View {
+    @ObservedObject var viewModel: AuthViewModel
+    var onSuccess: (() -> Void)? = nil
+    @State private var mode: KumoneLoginMode = .qr
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Picker("", selection: $mode) {
+                ForEach(KumoneLoginMode.allCases) { item in
+                    Text(item.rawValue).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            switch mode {
+            case .qr:
+                QRLoginForm(viewModel: viewModel, onSuccess: onSuccess)
+            case .sms:
+                CaptchaLoginForm(viewModel: viewModel, onSuccess: onSuccess)
+            }
+        }
+        .onChangeCompat(of: mode) { _, newMode in
+            if newMode == .qr {
+                Task { await viewModel.startQRLogin() }
+            } else {
+                viewModel.stopQRStatusCheck()
+            }
+        }
+        .onChangeCompat(of: viewModel.isLoggedIn) { _, loggedIn in
+            if loggedIn {
+                onSuccess?()
+            }
+        }
+    }
+}
+
+struct QRLoginForm: View {
+    @ObservedObject var viewModel: AuthViewModel
+    var onSuccess: (() -> Void)? = nil
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("使用网易云音乐 App 扫码登录")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white)
+                    .frame(width: 220, height: 220)
+                    .shadow(color: Color.black.opacity(0.12), radius: 12, y: 4)
+
+                if let qrImage = viewModel.qrImage {
+                    QRCodeImageView(qrImage: qrImage)
+                        .frame(width: 188, height: 188)
+                        .blur(radius: overlayVisible ? 3 : 0)
+                } else {
+                    ProgressView()
+                }
+
+                if overlayVisible {
+                    VStack(spacing: 10) {
+                        switch viewModel.qrStatus {
+                        case .expired:
+                            Image(systemName: "arrow.clockwise.circle.fill")
+                                .font(.system(size: 34))
+                                .foregroundColor(.red)
+                            Text("二维码已失效")
+                                .font(.system(size: 13, weight: .medium))
+                            Button("刷新") {
+                                Task { await viewModel.startQRLogin() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+                            .controlSize(.small)
+                        case .scanned:
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 34))
+                                .foregroundColor(.green)
+                            Text("已扫码")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("请在手机上确认")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        default:
+                            EmptyView()
+                        }
+                    }
+                    .padding(12)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+            }
+
+            Group {
+                switch viewModel.qrStatus {
+                case .waiting:
+                    Text(viewModel.qrImage == nil ? "正在获取二维码…" : "打开网易云音乐 App，扫一扫登录")
+                case .scanned:
+                    Text("等待手机确认…")
+                case .expired:
+                    Text("二维码已失效，请刷新")
+                case .confirmed:
+                    Text("登录成功")
+                }
+            }
+            .font(.caption)
+            .foregroundColor(.secondary)
+
+            if let error = viewModel.errorMessage, viewModel.qrStatus != .confirmed {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+            }
+
+            Text("只有一台设备时，可截图二维码，到网易云音乐 App 扫一扫里选择相册识别")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+        }
+        .task {
+            await viewModel.startQRLogin()
+        }
+        .onDisappear {
+            viewModel.stopQRStatusCheck()
+        }
+        .onChangeCompat(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            if viewModel.qrStatus == .expired || viewModel.qrImage == nil {
+                Task { await viewModel.startQRLogin() }
+            }
+        }
+        .onChangeCompat(of: viewModel.isLoggedIn) { _, loggedIn in
+            if loggedIn {
+                onSuccess?()
+            }
+        }
+    }
+
+    private var overlayVisible: Bool {
+        viewModel.qrStatus == .expired || viewModel.qrStatus == .scanned
     }
 }
 
@@ -1043,24 +1202,33 @@ struct CaptchaLoginForm: View {
     var onSuccess: (() -> Void)? = nil
     
     var body: some View {
-        VStack(spacing: 20) {
-            // 手机号输入
+        VStack(spacing: 16) {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11))
+                Text("可能被网易云风控拦截，推荐使用扫码登录")
+                    .font(.system(size: 12))
+                    .multilineTextAlignment(.leading)
+            }
+            .foregroundColor(.red)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
             AnimatedInputField(
                 placeholder: "手机号",
                 icon: "phone",
                 text: $phone
             )
-            .padding(.horizontal, 30)
-            
-            // 验证码输入和发送按钮
+
             HStack(spacing: 12) {
                 AnimatedInputField(
                     placeholder: "验证码",
                     icon: "number",
                     text: $captcha
                 )
-                
-                // 发送验证码按钮
+
                 Button(action: {
                     Task {
                         await viewModel.sendCaptcha(phone: phone)
@@ -1077,14 +1245,11 @@ struct CaptchaLoginForm: View {
                 }
                 .disabled(!canSendCaptcha || viewModel.isLoading)
             }
-            .padding(.horizontal, 30)
-            
-            // 错误信息
+
             if let error = viewModel.errorMessage {
                 Text(error)
                     .foregroundColor(.red)
                     .font(.caption)
-                    .padding(.horizontal, 30)
             }
             
             // 登录按钮
@@ -1118,23 +1283,20 @@ struct CaptchaLoginForm: View {
                 .cornerRadius(27)
                 .shadow(color: Color.red.opacity(0.3), radius: 10, y: 5)
             }
-            .padding(.horizontal, 30)
-            .padding(.top, 10)
+            .padding(.top, 4)
             .disabled(phone.isEmpty || captcha.isEmpty || viewModel.isLoading)
             .opacity(phone.isEmpty || captcha.isEmpty ? 0.6 : 1)
             .scaleEffect(viewModel.isLoading ? 0.98 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: viewModel.isLoading)
-            
-            // 提示
+
             Text("验证码将发送到您的手机")
                 .font(.caption)
                 .foregroundColor(.gray)
-                .padding(.top, 5)
         }
     }
     
     private var canSendCaptcha: Bool {
-        !phone.isEmpty && viewModel.captchaCountdown == 0
+        phone.count >= 11 && viewModel.captchaCountdown == 0
     }
 }
 
@@ -1447,52 +1609,64 @@ struct CookieLoginForm: View {
 // MARK: - 登录弹窗
 struct LoginSheetView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @ObservedObject private var themeManager = ThemeManager.shared
     @Environment(\.dismiss) var dismiss
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 28) {
-                    // Logo
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.red, Color.red.opacity(0.8)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+            ZStack {
+                if themeManager.showsCustomWallpaper {
+                    CustomWallpaperLayer()
+                } else {
+                    Color(UIColor.systemGroupedBackground)
+                        .ignoresSafeArea()
+                }
+
+                ScrollView {
+                    VStack(spacing: 28) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.red, Color.red.opacity(0.8)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                            .frame(width: 80, height: 80)
-                            .shadow(color: Color.red.opacity(0.4), radius: 15, y: 8)
-                        
-                        Image(systemName: "music.note")
-                            .font(.system(size: 36, weight: .medium))
-                            .foregroundColor(.white)
+                                .frame(width: 80, height: 80)
+                                .shadow(color: Color.red.opacity(0.4), radius: 15, y: 8)
+
+                            Image(systemName: "music.note")
+                                .font(.system(size: 36, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.top, 30)
+
+                        VStack(spacing: 8) {
+                            Text("欢迎登录")
+                                .font(.title2)
+                                .fontWeight(.bold)
+
+                            Text("扫码或手机验证码登录网易云账号")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+
+                        KumoneLoginPanel(viewModel: authViewModel) {
+                            dismiss()
+                        }
+                        .padding(20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                        )
+                        .padding(.horizontal, 20)
+
+                        Spacer(minLength: 40)
                     }
-                    .padding(.top, 30)
-                    
-                    VStack(spacing: 8) {
-                        Text("欢迎登录")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        Text("使用 Cookie 快速登录您的账号")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    // Cookie 登录表单
-                    ModernCookieLoginForm(viewModel: authViewModel) {
-                        dismiss()
-                    }
-                    .padding(.horizontal, 20)
-                    
-                    Spacer(minLength: 40)
                 }
             }
-            .background(Color(UIColor.systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

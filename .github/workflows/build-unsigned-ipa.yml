@@ -56,11 +56,11 @@ jobs:
         run: |
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/NeteaseMusic.app Payload/
-          ditto -c -k --sequesterRsrc --keepParent Payload Youmi-Music-unsigned.ipa
-          ls -lh Youmi-Music-unsigned.ipa
+          ditto -c -k --sequesterRsrc --keepParent Payload Youmi-Music-unsigned-1.2.ipa
+          ls -lh Youmi-Music-unsigned-1.2.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Youmi-Music-unsigned-ipa
-          path: NeteaseMusic/Youmi-Music-unsigned.ipa
+          name: Youmi-Music-unsigned-1.2-ipa
+          path: NeteaseMusic/Youmi-Music-unsigned-1.2.ipa

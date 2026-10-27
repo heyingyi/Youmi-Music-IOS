@@ -172,26 +172,19 @@ class AuthViewModel: ObservableObject {
     
     /// 开始二维码登录
     func startQRLogin() async {
-        isLoading = true
         errorMessage = nil
         qrStatus = .waiting
-        
+        qrImage = nil
+        stopQRStatusCheck()
+
         do {
-            // 1. 获取 key
             let key = try await authService.getQRKey()
             qrKey = key
-            
-            // 2. 生成二维码
-            let qrimg = try await authService.createQRCode(key: key)
-            qrImage = qrimg
-            
-            // 3. 开始轮询检查状态
+            qrImage = try await authService.createQRCode(key: key)
             startQRStatusCheck()
         } catch {
             errorMessage = error.localizedDescription
         }
-        
-        isLoading = false
     }
     
     /// 开始轮询检查二维码状态

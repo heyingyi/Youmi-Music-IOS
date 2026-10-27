@@ -121,7 +121,7 @@ class AudioPlayer: ObservableObject {
     /// seek 进行中标记，防止旧时间回调导致歌词跳回
     private(set) var isSeeking: Bool = false
     
-    // MARK: - 歌词高频更新（CADisplayLink 驱动，~60fps）
+    // MARK: - 歌词高频更新（CADisplayLink 驱动，ProMotion 120fps）
     private var lyricsDisplayLink: CADisplayLink?
     var lyricsTimeUpdateInterval: Double = 0 {
         didSet {
@@ -136,8 +136,7 @@ class AudioPlayer: ObservableObject {
     private func startLyricsDisplayLink() {
         stopLyricsDisplayLink()
         let link = CADisplayLink(target: self, selector: #selector(lyricsDisplayLinkFired))
-        // 约 30fps，足够歌词逐字动画丝滑
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
         link.add(to: .main, forMode: .common)
         lyricsDisplayLink = link
     }
