@@ -124,14 +124,19 @@ class AuthService {
         let response: QRCheckResponse = try await request(
             endpoint: .loginQRCheck,
             queryItems: [
-                URLQueryItem(name: "key", value: key),
-                URLQueryItem(name: "noCookie", value: "true")
+                URLQueryItem(name: "key", value: key)
             ]
         )
 
-        // 803 表示登录成功
-        if response.code == 803, let cookie = response.cookie {
-            network.setCookie(cookie)
+        if response.code == 803 {
+            if let cookie = response.cookie, !cookie.isEmpty {
+                network.setCookie(cookie)
+            } else {
+                let header = KumoneMusicClient.shared.cookieHeaderString()
+                if !header.isEmpty {
+                    network.setCookie(header)
+                }
+            }
         }
 
         return response

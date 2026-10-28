@@ -181,6 +181,9 @@ final class KumoneMusicClient {
             var body: [String: Any] = ["code": intValue(json["code"], fallback: -1)]
             if let message = json["message"] { body["message"] = message }
             if intValue(json["code"]) == 803 {
+                if let cookie = json["cookie"] as? String, !cookie.isEmpty {
+                    importCookieString(cookie.replacingOccurrences(of: ";;", with: ";"))
+                }
                 body["cookie"] = cookieHeaderString()
                 body["message"] = json["message"] ?? "授权成功"
             }
@@ -732,19 +735,65 @@ final class KumoneMusicClient {
     }
 
     private func absorbSetCookies(from response: HTTPURLResponse, url: URL) {
-        var fields: [String: String] = [:]
-        for (key, value) in response.allHeaderFields {
-            if let key = key as? String, let value = value as? String {
-                fields[key] = value
+        var new: [String: String] = [:]
+        var headerLines: [String] = []
+        for (rawKey, rawValue) in response.allHeaderFields {
+            let key = "\(rawKey)"
+            guard key.caseInsensitiveCompare("Set-Cookie") == .orderedSame else { continue }
+            if let values = rawValue as? [String] {
+                headerLines.append(contentsOf: values)
+            } else {
+                headerLines.append("\(rawValue)")
             }
         }
-        let parsed = HTTPCookie.cookies(withResponseHeaderFields: fields, for: url)
-        guard !parsed.isEmpty else { return }
-        var new: [String: String] = [:]
-        for cookie in parsed where !cookie.value.isEmpty && cookie.value != "\"\"" {
-            new[cookie.name] = cookie.value
+        if headerLines.isEmpty, let single = response.value(forHTTPHeaderField: "Set-Cookie") {
+            headerLines = [single]
+        }
+        for line in headerLines.flatMap({ splitSetCookieValues($0) }) {
+            let pair = line.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: true).first.map(String.init) ?? line
+            guard let eq = pair.firstIndex(of: "=") else { continue }
+            let name = String(pair[..<eq]).trimmingCharacters(in: .whitespaces)
+            let value = String(pair[pair.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty, !value.isEmpty, value != "\"\"" {
+                new[name] = value
+            }
+        }
+        if new.isEmpty {
+            var fields: [String: String] = [:]
+            for (key, value) in response.allHeaderFields {
+                fields["\(key)"] = "\(value)"
+            }
+            for cookie in HTTPCookie.cookies(withResponseHeaderFields: fields, for: url)
+            where !cookie.value.isEmpty && cookie.value != "\"\"" {
+                new[cookie.name] = cookie.value
+            }
         }
         if !new.isEmpty { setCookies(new) }
+    }
+
+    private func splitSetCookieValues(_ header: String) -> [String] {
+        var result: [String] = []
+        var current = ""
+        for part in header.split(separator: ",", omittingEmptySubsequences: false) {
+            let piece = String(part)
+            let trimmed = piece.trimmingCharacters(in: .whitespaces)
+            if current.isEmpty {
+                current = piece
+                continue
+            }
+            let name = trimmed.split(separator: "=", maxSplits: 1).first.map(String.init) ?? ""
+            let isNewCookie = !name.isEmpty && name.unicodeScalars.allSatisfy {
+                CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-")).contains($0)
+            }
+            if isNewCookie && trimmed.contains("=") {
+                result.append(current)
+                current = trimmed
+            } else {
+                current += "," + piece
+            }
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
     }
 
     private func cookieHeader(extra: [String: String], overrides: [String: String] = [:]) -> String {

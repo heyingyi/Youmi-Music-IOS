@@ -43,6 +43,17 @@ struct MainTabView: View {
         .task {
             await preWarmData()
         }
+        .fullScreenCover(isPresented: $showLogin) {
+            LoginSheetView()
+                .environmentObject(authViewModel)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showLoginSheet)) { _ in
+            guard !authViewModel.isLoggedIn else { return }
+            selectedTab = .library
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                showLogin = true
+            }
+        }
     }
     
     // MARK: - iOS 26 原生 TabView

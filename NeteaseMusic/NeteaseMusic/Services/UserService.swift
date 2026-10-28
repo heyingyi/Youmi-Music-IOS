@@ -20,42 +20,45 @@ class UserService {
     
     /// 获取当前登录用户的完整资料
     func getCurrentUserProfile() async throws -> UserProfile {
-        // 先获取账号信息拿到 uid
         let accountResponse = try await getUserAccount()
-        
-        guard accountResponse.code == 200,
-              let account = accountResponse.account else {
-            throw NetworkError.serverError(accountResponse.code, "获取账号信息失败")
+        let account = accountResponse.account
+        let fallback = accountResponse.profile
+
+        if let uid = account?.id, uid != 0,
+           let detail = try? await getUserDetail(uid: uid),
+           let profile = detail.profile, profile.userId != 0 {
+            return UserProfile(
+                userId: profile.userId,
+                nickname: profile.nickname.isEmpty ? (fallback?.nickname ?? profile.nickname) : profile.nickname,
+                avatarUrl: profile.avatarUrl ?? fallback?.avatarUrl,
+                backgroundUrl: profile.backgroundUrl ?? fallback?.backgroundUrl,
+                signature: profile.signature ?? fallback?.signature,
+                gender: profile.gender ?? fallback?.gender,
+                birthday: profile.birthday ?? fallback?.birthday,
+                city: profile.city ?? fallback?.city,
+                province: profile.province ?? fallback?.province,
+                followed: profile.followed ?? fallback?.followed,
+                followeds: profile.followeds ?? fallback?.followeds,
+                follows: profile.follows ?? fallback?.follows,
+                playlistCount: profile.playlistCount ?? fallback?.playlistCount,
+                eventCount: profile.eventCount ?? fallback?.eventCount,
+                vipType: profile.vipType ?? fallback?.vipType,
+                level: detail.level ?? profile.level ?? fallback?.level,
+                listenSongs: detail.listenSongs ?? profile.listenSongs ?? fallback?.listenSongs
+            )
         }
-        
-        // 再获取用户详情
-        let detailResponse = try await getUserDetail(uid: account.id)
-        
-        guard detailResponse.code == 200,
-              let profile = detailResponse.profile else {
-            throw NetworkError.serverError(detailResponse.code, "获取用户详情失败")
+
+        if let fallback, fallback.userId != 0 {
+            return fallback
         }
-        
-        // 合并根级别的 level 和 listenSongs 到 profile
-        return UserProfile(
-            userId: profile.userId,
-            nickname: profile.nickname,
-            avatarUrl: profile.avatarUrl,
-            backgroundUrl: profile.backgroundUrl,
-            signature: profile.signature,
-            gender: profile.gender,
-            birthday: profile.birthday,
-            city: profile.city,
-            province: profile.province,
-            followed: profile.followed,
-            followeds: profile.followeds,
-            follows: profile.follows,
-            playlistCount: profile.playlistCount,
-            eventCount: profile.eventCount,
-            vipType: profile.vipType,
-            level: detailResponse.level ?? profile.level,
-            listenSongs: detailResponse.listenSongs ?? profile.listenSongs
-        )
+        if let account, account.id != 0 {
+            return UserProfile(
+                userId: account.id,
+                nickname: account.userName ?? "网易云用户",
+                vipType: account.vipType
+            )
+        }
+        throw NetworkError.serverError(accountResponse.code, "获取账号信息失败")
     }
     
     // MARK: - 网易云歌单和收藏

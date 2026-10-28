@@ -172,7 +172,7 @@ class AuthViewModel: ObservableObject {
     
     /// 开始二维码登录
     func startQRLogin() async {
-        guard !isLoggedIn, qrStatus != .confirmed else { return }
+        if isLoggedIn, currentUser != nil { return }
         errorMessage = nil
         qrStatus = .waiting
         qrImage = nil
@@ -190,7 +190,8 @@ class AuthViewModel: ObservableObject {
 
     /// 从网易云 App 返回后继续轮询同一张码，不重新申请 key
     func resumeQRLoginIfNeeded() async {
-        guard !isLoggedIn, qrStatus != .confirmed else { return }
+        if currentUser != nil { return }
+        guard qrStatus != .confirmed else { return }
         if qrKey == nil || qrImage == nil {
             await startQRLogin()
             return
@@ -226,7 +227,8 @@ class AuthViewModel: ObservableObject {
     
     /// 检查二维码状态
     private func checkQRStatus() async {
-        guard let key = qrKey, qrStatus != .confirmed, !isLoggedIn else { return }
+        guard let key = qrKey, qrStatus != .confirmed else { return }
+        if currentUser != nil { return }
         
         do {
             let response = try await authService.checkQRStatus(key: key)
@@ -262,15 +264,38 @@ class AuthViewModel: ObservableObject {
     }
 
     private func markQRLoginSucceeded() async {
-        guard !isLoggedIn || qrStatus != .confirmed else { return }
         qrStatus = .confirmed
-        isLoggedIn = true
         stopQRStatusCheck()
         await fetchCurrentUser()
+        if currentUser != nil || authService.isLoggedIn() {
+            isLoggedIn = true
+        }
     }
     
     /// 获取当前用户信息
     func fetchCurrentUser() async {
+        if let status = try? await authService.getLoginStatus() {
+            if let profile = status.data?.profile, profile.userId != 0 {
+                currentUser = profile
+                let uid = status.data?.account?.id ?? profile.userId
+                await mergeUserDetail(uid: uid, base: profile)
+                return
+            }
+            if let account = status.data?.account, account.id != 0 {
+                if let detail = try? await userService.getUserDetail(uid: account.id),
+                   let profile = detail.profile, profile.userId != 0 {
+                    currentUser = profile
+                    await mergeUserDetail(uid: account.id, base: profile)
+                    return
+                }
+                currentUser = UserProfile(
+                    userId: account.id,
+                    nickname: account.userName ?? "网易云用户",
+                    vipType: account.vipType
+                )
+                return
+            }
+        }
         do {
             currentUser = try await userService.getCurrentUserProfile()
         } catch {
@@ -278,6 +303,30 @@ class AuthViewModel: ObservableObject {
             print("Fetch user error: \(error)")
             #endif
         }
+    }
+
+    private func mergeUserDetail(uid: Int, base: UserProfile) async {
+        guard let detail = try? await userService.getUserDetail(uid: uid),
+              let profile = detail.profile else { return }
+        currentUser = UserProfile(
+            userId: profile.userId,
+            nickname: profile.nickname.isEmpty ? base.nickname : profile.nickname,
+            avatarUrl: profile.avatarUrl ?? base.avatarUrl,
+            backgroundUrl: profile.backgroundUrl ?? base.backgroundUrl,
+            signature: profile.signature ?? base.signature,
+            gender: profile.gender ?? base.gender,
+            birthday: profile.birthday ?? base.birthday,
+            city: profile.city ?? base.city,
+            province: profile.province ?? base.province,
+            followed: profile.followed ?? base.followed,
+            followeds: profile.followeds ?? base.followeds,
+            follows: profile.follows ?? base.follows,
+            playlistCount: profile.playlistCount ?? base.playlistCount,
+            eventCount: profile.eventCount ?? base.eventCount,
+            vipType: profile.vipType ?? base.vipType,
+            level: detail.level ?? profile.level ?? base.level,
+            listenSongs: detail.listenSongs ?? profile.listenSongs ?? base.listenSongs
+        )
     }
     
     /// 检查登录状态

@@ -1,5 +1,39 @@
 import Foundation
 
+private enum JSONFlex {
+    static func int<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> Int? {
+        if let v = try? c.decodeIfPresent(Int.self, forKey: key) { return v }
+        if let v = try? c.decodeIfPresent(Int64.self, forKey: key) { return Int(v) }
+        if let v = try? c.decodeIfPresent(Double.self, forKey: key) { return Int(v) }
+        if let s = try? c.decodeIfPresent(String.self, forKey: key), let v = Int(s) { return v }
+        return nil
+    }
+
+    static func int64<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> Int64? {
+        if let v = try? c.decodeIfPresent(Int64.self, forKey: key) { return v }
+        if let v = try? c.decodeIfPresent(Int.self, forKey: key) { return Int64(v) }
+        if let v = try? c.decodeIfPresent(Double.self, forKey: key) { return Int64(v) }
+        if let s = try? c.decodeIfPresent(String.self, forKey: key), let v = Int64(s) { return v }
+        return nil
+    }
+
+    static func string<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> String? {
+        if let v = try? c.decodeIfPresent(String.self, forKey: key) { return v }
+        if let v = try? c.decodeIfPresent(Int.self, forKey: key) { return String(v) }
+        return nil
+    }
+
+    static func bool<K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> Bool? {
+        if let v = try? c.decodeIfPresent(Bool.self, forKey: key) { return v }
+        if let v = try? c.decodeIfPresent(Int.self, forKey: key) { return v != 0 }
+        if let s = try? c.decodeIfPresent(String.self, forKey: key) {
+            if s == "true" || s == "1" { return true }
+            if s == "false" || s == "0" { return false }
+        }
+        return nil
+    }
+}
+
 // MARK: - 登录响应
 struct LoginResponse: Codable {
     let code: Int
@@ -18,6 +52,20 @@ struct Account: Codable {
     let status: Int?
     let createTime: Int64?
     let vipType: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, userName, type, status, createTime, vipType
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        userName = JSONFlex.string(c, .userName)
+        type = JSONFlex.int(c, .type)
+        status = JSONFlex.int(c, .status)
+        createTime = JSONFlex.int64(c, .createTime)
+        vipType = JSONFlex.int(c, .vipType)
+    }
 }
 
 // MARK: - 用户资料
@@ -39,6 +87,71 @@ struct UserProfile: Codable, Equatable {
     let vipType: Int?
     let level: Int?            // 等级
     let listenSongs: Int?      // 听歌数量
+
+    enum CodingKeys: String, CodingKey {
+        case userId, nickname, avatarUrl, backgroundUrl, signature
+        case gender, birthday, city, province, followed, followeds, follows
+        case playlistCount, eventCount, vipType, level, listenSongs
+    }
+
+    init(
+        userId: Int,
+        nickname: String,
+        avatarUrl: String? = nil,
+        backgroundUrl: String? = nil,
+        signature: String? = nil,
+        gender: Int? = nil,
+        birthday: Int64? = nil,
+        city: Int? = nil,
+        province: Int? = nil,
+        followed: Bool? = nil,
+        followeds: Int? = nil,
+        follows: Int? = nil,
+        playlistCount: Int? = nil,
+        eventCount: Int? = nil,
+        vipType: Int? = nil,
+        level: Int? = nil,
+        listenSongs: Int? = nil
+    ) {
+        self.userId = userId
+        self.nickname = nickname
+        self.avatarUrl = avatarUrl
+        self.backgroundUrl = backgroundUrl
+        self.signature = signature
+        self.gender = gender
+        self.birthday = birthday
+        self.city = city
+        self.province = province
+        self.followed = followed
+        self.followeds = followeds
+        self.follows = follows
+        self.playlistCount = playlistCount
+        self.eventCount = eventCount
+        self.vipType = vipType
+        self.level = level
+        self.listenSongs = listenSongs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        userId = JSONFlex.int(c, .userId) ?? 0
+        nickname = JSONFlex.string(c, .nickname) ?? ""
+        avatarUrl = JSONFlex.string(c, .avatarUrl)
+        backgroundUrl = JSONFlex.string(c, .backgroundUrl)
+        signature = JSONFlex.string(c, .signature)
+        gender = JSONFlex.int(c, .gender)
+        birthday = JSONFlex.int64(c, .birthday)
+        city = JSONFlex.int(c, .city)
+        province = JSONFlex.int(c, .province)
+        followed = JSONFlex.bool(c, .followed)
+        followeds = JSONFlex.int(c, .followeds)
+        follows = JSONFlex.int(c, .follows)
+        playlistCount = JSONFlex.int(c, .playlistCount)
+        eventCount = JSONFlex.int(c, .eventCount)
+        vipType = JSONFlex.int(c, .vipType)
+        level = JSONFlex.int(c, .level)
+        listenSongs = JSONFlex.int(c, .listenSongs)
+    }
     
     var genderText: String {
         switch gender {
@@ -57,6 +170,20 @@ struct UserDetailResponse: Codable {
     let profile: UserProfile?
     let createDays: Int?       // 注册天数
     let createTime: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case code, level, listenSongs, profile, createDays, createTime
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        level = JSONFlex.int(c, .level)
+        listenSongs = JSONFlex.int(c, .listenSongs)
+        profile = try c.decodeIfPresent(UserProfile.self, forKey: .profile)
+        createDays = JSONFlex.int(c, .createDays)
+        createTime = JSONFlex.int64(c, .createTime)
+    }
 }
 
 // MARK: - 用户账户响应
@@ -64,6 +191,17 @@ struct UserAccountResponse: Codable {
     let code: Int
     let account: Account?
     let profile: UserProfile?
+
+    enum CodingKeys: String, CodingKey {
+        case code, account, profile
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        account = try c.decodeIfPresent(Account.self, forKey: .account)
+        profile = try c.decodeIfPresent(UserProfile.self, forKey: .profile)
+    }
 }
 
 // MARK: - 登录状态响应
@@ -75,6 +213,17 @@ struct LoginStatusData: Codable {
     let code: Int
     let account: Account?
     let profile: UserProfile?
+
+    enum CodingKeys: String, CodingKey {
+        case code, account, profile
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 200
+        account = try c.decodeIfPresent(Account.self, forKey: .account)
+        profile = try c.decodeIfPresent(UserProfile.self, forKey: .profile)
+    }
 }
 
 // MARK: - 二维码相关

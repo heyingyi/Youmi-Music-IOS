@@ -4,6 +4,7 @@ struct ProfileCardView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) var colorScheme
+    @Environment(\.dismiss) private var dismiss
     @State private var showLogoutAlert = false
     
     // MARK: - 主题相关属性
@@ -55,7 +56,11 @@ struct ProfileCardView: View {
         .alert("确认退出", isPresented: $showLogoutAlert) {
             Button("取消", role: .cancel) {}
             Button("退出", role: .destructive) {
-                Task { await authViewModel.logout() }
+                Task {
+                    await authViewModel.logout()
+                    dismiss()
+                    NotificationCenter.default.post(name: .showLoginSheet, object: nil)
+                }
             }
         } message: {
             Text("确定要退出当前账号吗？")

@@ -70,10 +70,11 @@ struct LibraryView: View {
         }
         .onChangeCompat(of: authViewModel.isLoggedIn) { _, isLoggedIn in
             if !isLoggedIn {
-                // 退出登录时清空数据
                 cloudPlaylists = []
                 cloudAlbums = []
                 likedSongIds = []
+            } else if authViewModel.currentUser == nil {
+                Task { await authViewModel.fetchCurrentUser() }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .likedSongsChanged)) { _ in
@@ -131,17 +132,26 @@ struct LibraryView: View {
     private var liquidGlassUserSection: some View {
         VStack(spacing: 0) {
             if authViewModel.isLoggedIn, let profile = authViewModel.currentUser {
-                // 已登录：显示用户卡片
                 NavigationLink(destination: ProfileCardView().environmentObject(authViewModel)) {
                     LiquidGlassUserCard(
                         avatarUrl: profile.avatarUrl.flatMap { URL(string: $0) },
-                        nickname: profile.nickname,
+                        nickname: profile.nickname.isEmpty ? "网易云用户" : profile.nickname,
                         level: profile.level
                     )
                 }
                 .buttonStyle(LiquidGlassButtonStyle())
+            } else if authViewModel.isLoggedIn {
+                Button(action: {
+                    Task { await authViewModel.fetchCurrentUser() }
+                }) {
+                    LiquidGlassUserCard(
+                        avatarUrl: nil,
+                        nickname: "正在加载资料",
+                        level: nil
+                    )
+                }
+                .buttonStyle(LiquidGlassButtonStyle())
             } else {
-                // 未登录：显示登录入口
                 Button(action: { showLogin = true }) {
                     LiquidGlassLoginCard()
                 }
