@@ -136,7 +136,7 @@ class AudioPlayer: ObservableObject {
     private func startLyricsDisplayLink() {
         stopLyricsDisplayLink()
         let link = CADisplayLink(target: self, selector: #selector(lyricsDisplayLinkFired))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
         link.add(to: .main, forMode: .common)
         lyricsDisplayLink = link
     }

@@ -180,7 +180,7 @@ struct LoginView: View {
                      .font(.title2)
                      .fontWeight(.bold)
                  
-                 Text("扫码或手机验证码登录网易云账号")
+                            Text("扫码、验证码或 Cookie 登录网易云账号")
                      .font(.subheadline)
                      .foregroundColor(.secondary)
              }
@@ -267,6 +267,7 @@ struct QRCodeImageView: View {
 private enum KumoneLoginMode: String, CaseIterable, Identifiable {
     case qr = "扫码登录"
     case sms = "手机验证码"
+    case cookie = "Cookie"
 
     var id: String { rawValue }
 }
@@ -291,6 +292,8 @@ struct KumoneLoginPanel: View {
                 QRLoginForm(viewModel: viewModel, onSuccess: onSuccess)
             case .sms:
                 CaptchaLoginForm(viewModel: viewModel, onSuccess: onSuccess)
+            case .cookie:
+                ModernCookieLoginForm(viewModel: viewModel, onSuccess: onSuccess)
             }
         }
         .onChangeCompat(of: mode) { _, newMode in
@@ -399,13 +402,13 @@ struct QRLoginForm: View {
             await viewModel.startQRLogin()
         }
         .onDisappear {
-            viewModel.stopQRStatusCheck()
+            if !viewModel.isLoggedIn, viewModel.qrStatus != .confirmed {
+                viewModel.stopQRStatusCheck()
+            }
         }
         .onChangeCompat(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
-            if viewModel.qrStatus == .expired || viewModel.qrImage == nil {
-                Task { await viewModel.startQRLogin() }
-            }
+            Task { await viewModel.resumeQRLoginIfNeeded() }
         }
         .onChangeCompat(of: viewModel.isLoggedIn) { _, loggedIn in
             if loggedIn {
@@ -1648,7 +1651,7 @@ struct LoginSheetView: View {
                                 .font(.title2)
                                 .fontWeight(.bold)
 
-                            Text("扫码或手机验证码登录网易云账号")
+                 Text("扫码、验证码或 Cookie 登录网易云账号")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }

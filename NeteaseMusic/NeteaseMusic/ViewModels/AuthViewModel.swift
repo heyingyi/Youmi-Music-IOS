@@ -172,6 +172,7 @@ class AuthViewModel: ObservableObject {
     
     /// 开始二维码登录
     func startQRLogin() async {
+        guard !isLoggedIn, qrStatus != .confirmed else { return }
         errorMessage = nil
         qrStatus = .waiting
         qrImage = nil
@@ -186,13 +187,31 @@ class AuthViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
+
+    /// 从网易云 App 返回后继续轮询同一张码，不重新申请 key
+    func resumeQRLoginIfNeeded() async {
+        guard !isLoggedIn, qrStatus != .confirmed else { return }
+        if qrKey == nil || qrImage == nil {
+            await startQRLogin()
+            return
+        }
+        if qrCheckTimer == nil {
+            startQRStatusCheck()
+        }
+        await checkQRStatus()
+        if isLoggedIn || qrStatus == .confirmed {
+            return
+        }
+        if authService.isLoggedIn() {
+            await markQRLoginSucceeded()
+        }
+    }
     
     /// 开始轮询检查二维码状态
     private func startQRStatusCheck() {
         stopQRStatusCheck()
         
-        // 每2秒检查一次
-        qrCheckTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        qrCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.checkQRStatus()
             }
@@ -207,38 +226,47 @@ class AuthViewModel: ObservableObject {
     
     /// 检查二维码状态
     private func checkQRStatus() async {
-        guard let key = qrKey else { return }
+        guard let key = qrKey, qrStatus != .confirmed, !isLoggedIn else { return }
         
         do {
             let response = try await authService.checkQRStatus(key: key)
             
             switch response.code {
             case 800:
-                // 二维码过期
-                qrStatus = .expired
-                stopQRStatusCheck()
+                if isLoggedIn || qrStatus == .confirmed || authService.isLoggedIn() {
+                    await markQRLoginSucceeded()
+                } else {
+                    qrStatus = .expired
+                    stopQRStatusCheck()
+                }
             case 801:
-                // 等待扫码
-                qrStatus = .waiting
+                if qrStatus != .waiting {
+                    qrStatus = .waiting
+                }
             case 802:
-                // 已扫码待确认
                 qrStatus = .scanned
             case 803:
-                // 登录成功
-                qrStatus = .confirmed
-                isLoggedIn = true
-                stopQRStatusCheck()
-                // 获取用户信息
-                await fetchCurrentUser()
+                await markQRLoginSucceeded()
             default:
                 break
             }
         } catch {
-            // 静默处理轮询错误
+            if authService.isLoggedIn() {
+                await markQRLoginSucceeded()
+                return
+            }
             #if DEBUG
             print("QR check error: \(error)")
             #endif
         }
+    }
+
+    private func markQRLoginSucceeded() async {
+        guard !isLoggedIn || qrStatus != .confirmed else { return }
+        qrStatus = .confirmed
+        isLoggedIn = true
+        stopQRStatusCheck()
+        await fetchCurrentUser()
     }
     
     /// 获取当前用户信息
@@ -281,6 +309,7 @@ class AuthViewModel: ObservableObject {
         currentUser = nil
         qrKey = nil
         qrImage = nil
+        qrStatus = .waiting
         stopQRStatusCheck()
     }
     
