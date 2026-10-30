@@ -151,6 +151,9 @@ struct LibraryView: View {
                     )
                 }
                 .buttonStyle(LiquidGlassButtonStyle())
+                .task {
+                    await authViewModel.refreshProfileOrSignOut()
+                }
             } else {
                 Button(action: { showLogin = true }) {
                     LiquidGlassLoginCard()

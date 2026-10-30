@@ -17,8 +17,9 @@ final class KumoneMusicClient {
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.httpShouldSetCookies = false
-        config.httpCookieAcceptPolicy = .never
+        config.httpShouldSetCookies = true
+        config.httpCookieAcceptPolicy = .always
+        config.httpCookieStorage = HTTPCookieStorage.shared
         config.timeoutIntervalForRequest = 8
         config.timeoutIntervalForResource = 12
         session = URLSession(configuration: config)
@@ -60,6 +61,25 @@ final class KumoneMusicClient {
         UserDefaults.standard.removeObject(forKey: cookiesKey)
         UserDefaults.standard.removeObject(forKey: youmiCookieKey)
         UserDefaults.standard.removeObject(forKey: "beans.netease.cookies")
+        if let cookies = HTTPCookieStorage.shared.cookies {
+            for cookie in cookies where cookie.domain.contains("163.com") {
+                HTTPCookieStorage.shared.deleteCookie(cookie)
+            }
+        }
+    }
+
+    func harvestCookieStorage() {
+        let storage = session.configuration.httpCookieStorage ?? HTTPCookieStorage.shared
+        guard let cookies = storage.cookies, !cookies.isEmpty else { return }
+        var new: [String: String] = [:]
+        for cookie in cookies {
+            let domain = cookie.domain.lowercased()
+            guard domain.contains("163.com") else { continue }
+            if !cookie.value.isEmpty, cookie.value != "\"\"" {
+                new[cookie.name] = cookie.value
+            }
+        }
+        if !new.isEmpty { setCookies(new) }
     }
 
     func importCookieString(_ cookie: String) {
@@ -727,6 +747,7 @@ final class KumoneMusicClient {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw NetEaseDirectError.network }
         absorbSetCookies(from: http, url: request.url!)
+        harvestCookieStorage()
         guard (200..<300).contains(http.statusCode) else {
             let snippet = String(data: data, encoding: .utf8)?.prefix(120) ?? ""
             throw NetEaseDirectError.httpStatus(http.statusCode, String(snippet))

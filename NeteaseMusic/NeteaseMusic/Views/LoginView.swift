@@ -303,8 +303,8 @@ struct KumoneLoginPanel: View {
                 viewModel.stopQRStatusCheck()
             }
         }
-        .onChangeCompat(of: viewModel.isLoggedIn) { _, loggedIn in
-            if loggedIn {
+        .onChangeCompat(of: viewModel.currentUser) { _, user in
+            if user != nil {
                 onSuccess?()
             }
         }
@@ -376,6 +376,8 @@ struct QRLoginForm: View {
                     Text(viewModel.qrImage == nil ? "正在获取二维码…" : "打开网易云音乐 App，扫一扫登录")
                 case .scanned:
                     Text("等待手机确认…")
+                case .authorizing:
+                    Text("正在获取资料…")
                 case .expired:
                     Text("二维码已失效，请刷新")
                 case .confirmed:
@@ -402,7 +404,9 @@ struct QRLoginForm: View {
             await viewModel.startQRLogin()
         }
         .onDisappear {
-            if !viewModel.isLoggedIn, viewModel.qrStatus != .confirmed {
+            if viewModel.currentUser == nil,
+               viewModel.qrStatus != .confirmed,
+               viewModel.qrStatus != .authorizing {
                 viewModel.stopQRStatusCheck()
             }
         }
@@ -410,8 +414,8 @@ struct QRLoginForm: View {
             guard newPhase == .active else { return }
             Task { await viewModel.resumeQRLoginIfNeeded() }
         }
-        .onChangeCompat(of: viewModel.isLoggedIn) { _, loggedIn in
-            if loggedIn {
+        .onChangeCompat(of: viewModel.currentUser) { _, user in
+            if user != nil {
                 onSuccess?()
             }
         }
@@ -1680,8 +1684,8 @@ struct LoginSheetView: View {
                     }
                 }
             }
-            .onChangeCompat(of: authViewModel.isLoggedIn) { _, newValue in
-                if newValue {
+            .onChangeCompat(of: authViewModel.currentUser) { _, user in
+                if user != nil {
                     dismiss()
                 }
             }

@@ -157,7 +157,8 @@ class AuthService {
 
     /// 检查是否已登录
     func isLoggedIn() -> Bool {
-        return KumoneMusicClient.shared.hasLoginCookie() || network.getSavedCookie() != nil
+        KumoneMusicClient.shared.harvestCookieStorage()
+        return KumoneMusicClient.shared.hasLoginCookie()
     }
 
     /// 恢复登录状态

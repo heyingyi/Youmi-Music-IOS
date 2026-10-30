@@ -23,7 +23,8 @@ class AuthViewModel: ObservableObject {
     enum QRStatus {
         case waiting    // 等待扫码
         case scanned    // 已扫码待确认
-        case confirmed  // 已确认
+        case authorizing // 803 已授权，正在拉资料
+        case confirmed  // 已确认且资料已到
         case expired    // 已过期
     }
     
@@ -191,7 +192,7 @@ class AuthViewModel: ObservableObject {
     /// 从网易云 App 返回后继续轮询同一张码，不重新申请 key
     func resumeQRLoginIfNeeded() async {
         if currentUser != nil { return }
-        guard qrStatus != .confirmed else { return }
+        if qrStatus == .confirmed || qrStatus == .authorizing { return }
         if qrKey == nil || qrImage == nil {
             await startQRLogin()
             return
@@ -200,10 +201,10 @@ class AuthViewModel: ObservableObject {
             startQRStatusCheck()
         }
         await checkQRStatus()
-        if isLoggedIn || qrStatus == .confirmed {
+        if currentUser != nil || qrStatus == .confirmed || qrStatus == .authorizing {
             return
         }
-        if authService.isLoggedIn() {
+        if KumoneMusicClient.shared.hasLoginCookie() {
             await markQRLoginSucceeded()
         }
     }
@@ -227,7 +228,8 @@ class AuthViewModel: ObservableObject {
     
     /// 检查二维码状态
     private func checkQRStatus() async {
-        guard let key = qrKey, qrStatus != .confirmed else { return }
+        guard let key = qrKey else { return }
+        if qrStatus == .confirmed || qrStatus == .authorizing { return }
         if currentUser != nil { return }
         
         do {
@@ -235,7 +237,7 @@ class AuthViewModel: ObservableObject {
             
             switch response.code {
             case 800:
-                if isLoggedIn || qrStatus == .confirmed || authService.isLoggedIn() {
+                if KumoneMusicClient.shared.hasLoginCookie() {
                     await markQRLoginSucceeded()
                 } else {
                     qrStatus = .expired
@@ -253,7 +255,7 @@ class AuthViewModel: ObservableObject {
                 break
             }
         } catch {
-            if authService.isLoggedIn() {
+            if KumoneMusicClient.shared.hasLoginCookie() {
                 await markQRLoginSucceeded()
                 return
             }
@@ -264,12 +266,27 @@ class AuthViewModel: ObservableObject {
     }
 
     private func markQRLoginSucceeded() async {
-        qrStatus = .confirmed
+        qrStatus = .authorizing
         stopQRStatusCheck()
-        await fetchCurrentUser()
-        if currentUser != nil || authService.isLoggedIn() {
-            isLoggedIn = true
+        for _ in 0..<8 {
+            KumoneMusicClient.shared.harvestCookieStorage()
+            await fetchCurrentUser()
+            if currentUser != nil {
+                isLoggedIn = true
+                qrStatus = .confirmed
+                return
+            }
+            try? await Task.sleep(nanoseconds: 500_000_000)
         }
+        if KumoneMusicClient.shared.hasLoginCookie() {
+            isLoggedIn = true
+            qrStatus = .confirmed
+            errorMessage = nil
+            return
+        }
+        qrStatus = .expired
+        errorMessage = "登录凭证未写入，请刷新二维码重试"
+        isLoggedIn = false
     }
     
     /// 获取当前用户信息
@@ -302,6 +319,19 @@ class AuthViewModel: ObservableObject {
             #if DEBUG
             print("Fetch user error: \(error)")
             #endif
+        }
+        if currentUser != nil {
+            isLoggedIn = true
+        } else if !KumoneMusicClient.shared.hasLoginCookie() {
+            isLoggedIn = false
+        }
+    }
+
+    func refreshProfileOrSignOut() async {
+        KumoneMusicClient.shared.harvestCookieStorage()
+        await fetchCurrentUser()
+        if currentUser == nil, !KumoneMusicClient.shared.hasLoginCookie() {
+            isLoggedIn = false
         }
     }
 
