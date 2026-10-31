@@ -108,6 +108,21 @@ class MusicSourceConfig: ObservableObject {
         }
     }
 
+    var customSourceDisplayName: String {
+        let template = customSourceTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        if template.lowercased().contains(".js") || template.contains("/blob/") {
+            if let url = URL(string: template) {
+                let last = url.lastPathComponent.replacingOccurrences(of: ".js", with: "")
+                if !last.isEmpty { return last }
+            }
+            return "自定义 JS"
+        }
+        if let host = URL(string: template)?.host, !host.isEmpty {
+            return host
+        }
+        return "自定义"
+    }
+
     /// 从 JSON 里取播放地址的路径，例如 url 或 data.url
     @Published var customSourceJSONPath: String {
         didSet {

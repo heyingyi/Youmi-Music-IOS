@@ -235,6 +235,24 @@ struct PlayerView: View {
                     // 层级 4: DJ 过渡提示（顶部悬浮）
                     DJTransitionOverlay()
 
+                    if let sourceName = audioPlayer.thirdPartySourceName, !sourceName.isEmpty {
+                        VStack {
+                            Text("已使用第三方音源：\(sourceName)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.black.opacity(0.72))
+                                )
+                                .padding(.top, 58)
+                            Spacer()
+                        }
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                    }
+
                     HiddenSystemVolumeView(controller: systemVolumeController)
                         .frame(width: 1, height: 1)
                         .allowsHitTesting(false)

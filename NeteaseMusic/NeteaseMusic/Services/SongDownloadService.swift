@@ -163,7 +163,12 @@ final class SongDownloadService: ObservableObject {
 
             var audioUrlString = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality)
             if audioUrlString == nil || audioUrlString?.isEmpty == true {
-                audioUrlString = await CustomAudioSourceService.resolve(id: track.id, quality: quality)
+                audioUrlString = await CustomAudioSourceService.resolve(
+                    id: track.id,
+                    quality: quality,
+                    trackName: track.name,
+                    artistName: track.artistName
+                )?.url
             }
             guard let audioUrlString, !audioUrlString.isEmpty,
                   let rawAudioURL = URL(string: audioUrlString) else {

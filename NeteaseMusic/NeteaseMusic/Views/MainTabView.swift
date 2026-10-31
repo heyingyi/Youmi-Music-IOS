@@ -388,7 +388,6 @@ struct iOS26FloatingMiniPlayer: View {
                     .contentShape(Rectangle())
             }
             
-            // 封面 + 歌曲信息
             Button {
                 HapticFeedback.light()
                 showPlayer = true
@@ -433,9 +432,11 @@ struct iOS26FloatingMiniPlayer: View {
                     
                     Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
             }
-            
+            .buttonStyle(.plain)
+
             // 播放/暂停
             Button {
                 HapticFeedback.light()

@@ -147,7 +147,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 LiquidGlassToggleRow(
                     title: "启用自定义音源",
-                    subtitle: "官方地址失败后使用你填写的接口",
+                    subtitle: "官方地址失败后使用 HTTP 模板或 lx/GitHub JS 插件",
                     icon: "link",
                     iconColor: .blue,
                     isOn: $sourceConfig.enableCustomSource
@@ -159,7 +159,7 @@ struct SettingsView: View {
                         Text("接口模板")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
-                        TextField("https://example.com/url?id={id}&br={br}", text: $sourceConfig.customSourceTemplate)
+                        TextField("https://.../{id} 或 GitHub JS 插件地址", text: $sourceConfig.customSourceTemplate)
                             .font(.system(size: 14, design: .monospaced))
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
@@ -176,7 +176,7 @@ struct SettingsView: View {
                             .padding(10)
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
 
-                        Text("占位符：{id} {songId} {quality} {br} {source}")
+                        Text("HTTP 占位符：{id} {songId} {quality} {br} {source}。也可填 lx 音源 JS，例如 GitHub blob/raw 链接。")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }

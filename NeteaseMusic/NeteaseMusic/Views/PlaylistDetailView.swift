@@ -111,14 +111,25 @@ struct PlaylistDetailView: View {
                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                     
                     if let creator = playlist?.creator {
-                        Text(creator.nickname)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.9))
-                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                        HStack(spacing: 8) {
+                            if let avatar = creator.avatarUrl, let url = URL(string: avatar) {
+                                CachedAsyncImage(url: url, targetSize: CGSize(width: 48, height: 48)) { image in
+                                    image.resizable().aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Circle().fill(Color.white.opacity(0.2))
+                                }
+                                .frame(width: 22, height: 22)
+                                .clipShape(Circle())
+                            }
+                            Text(creator.nickname)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                        }
                     }
                     
                     if let count = playlist?.trackCount {
-                        Text("\(count) 首歌曲")
+                        Text(playlistMetaText(count: count, playCount: playlist?.playCount))
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.8))
                     }
@@ -182,8 +193,11 @@ struct PlaylistDetailView: View {
             Button(action: playAll) {
                 HStack(spacing: 6) {
                     Image(systemName: "play.fill")
-                    Text("播放")
+                    Text("播放全部")
                         .fontWeight(.semibold)
+                    if let count = playlist?.trackCount {
+                        Text("(\(count))").opacity(0.85)
+                    }
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -192,20 +206,22 @@ struct PlaylistDetailView: View {
                 .clipShape(Capsule())
             }
             
-            Button(action: playShuffle) {
-                HStack(spacing: 6) {
-                    Image(systemName: "shuffle")
-                    Text("随机播放")
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.white.opacity(0.2))
-                .clipShape(Capsule())
+            Button(action: downloadAll) {
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(Color.white.opacity(0.2)))
             }
         }
         .font(.system(size: 14))
+    }
+
+    private func downloadAll() {
+        guard let tracks = playlist?.tracks else { return }
+        for track in tracks {
+            downloadService.download(track: track)
+        }
     }
     
     private var playGradient: LinearGradient {
@@ -337,6 +353,17 @@ struct PlaylistDetailView: View {
             audioPlayer.setPlaylist(tracks, startAt: 0)
         }
     }
+
+    private func playlistMetaText(count: Int, playCount: Int?) -> String {
+        guard let playCount, playCount > 0 else { return "\(count) 首歌曲" }
+        if playCount >= 100000000 {
+            return String(format: "%d 首 · %.1f亿次播放", count, Double(playCount) / 100000000)
+        }
+        if playCount >= 10000 {
+            return String(format: "%d 首 · %.1f万次播放", count, Double(playCount) / 10000)
+        }
+        return "\(count) 首 · \(playCount) 次播放"
+    }
     
     private func playShuffle() {
         if let tracks = playlist?.tracks, !tracks.isEmpty {
@@ -430,17 +457,20 @@ struct TrackRow: View {
             // 歌曲信息
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 4) {
-                    Text(track.name)
-                        .font(.subheadline)
-                        .foregroundColor(isCurrentTrack ? .red : .primary)
-                        .lineLimit(1)
-                    
-                    // 已下载标识
-                    if isDownloaded {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.green)
-                    }
+            Text(track.name)
+                .font(.subheadline)
+                .foregroundColor(isCurrentTrack ? .red : .primary)
+                .lineLimit(1)
+
+            if track.isVIP {
+                VIPBadge()
+            }
+            
+            if isDownloaded {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.green)
+            }
                 }
                 
                 HStack(spacing: 4) {
@@ -624,10 +654,15 @@ struct OptimizedTrackRow: View, Equatable {
     
     private var infoView: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(track.name)
-                .font(.subheadline)
-                .foregroundColor(isCurrentTrack ? .red : .primary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(track.name)
+                    .font(.subheadline)
+                    .foregroundColor(isCurrentTrack ? .red : .primary)
+                    .lineLimit(1)
+                if track.isVIP {
+                    VIPBadge()
+                }
+            }
             
             Text("\(track.artistName) · \(track.albumName)")
                 .font(.caption)

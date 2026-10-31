@@ -346,6 +346,7 @@ struct CloudTrack: Codable, Identifiable {
     let ar: [CloudTrackArtist]?
     let al: CloudTrackAlbum?
     let dt: Int?  // 时长(毫秒)
+    let fee: Int?
     
     var artistName: String {
         ar?.map { $0.name }.joined(separator: " / ") ?? "未知艺术家"
@@ -362,6 +363,15 @@ struct CloudTrack: Codable, Identifiable {
     var durationSeconds: TimeInterval {
         Double(dt ?? 0) / 1000.0
     }
+
+    var isVIP: Bool {
+        fee == 1 || fee == 4
+    }
+
+    var durationText: String {
+        let seconds = Int(durationSeconds)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
     
     func toTrack() -> Track {
         Track(
@@ -374,7 +384,8 @@ struct CloudTrack: Codable, Identifiable {
             dt: dt,
             duration: nil,
             mv: nil,
-            mvid: nil
+            mvid: nil,
+            fee: fee
         )
     }
 }

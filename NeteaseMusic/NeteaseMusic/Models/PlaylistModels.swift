@@ -75,6 +75,8 @@ struct Track: Codable, Identifiable {
     let duration: Int?     // 时长(毫秒) - 新歌速递API
     let mv: Int?           // MV ID，0表示没有MV - 歌单详情API
     let mvid: Int?         // MV ID - 新歌速递API
+    let fee: Int?
+    let privilege: TrackPrivilege?
     
     var artistName: String {
         // 优先使用artists，其次ar
@@ -118,8 +120,13 @@ struct Track: Codable, Identifiable {
         guard let dur = duration ?? dt else { return 0 }
         return Double(dur) / 1000.0
     }
+
+    var isVIP: Bool {
+        let value = fee ?? privilege?.fee ?? 0
+        return value == 1 || value == 4
+    }
     
-    init(id: Int, name: String, ar: [Artist]? = nil, al: Album? = nil, artists: [Artist]? = nil, album: Album? = nil, dt: Int? = nil, duration: Int? = nil, mv: Int? = nil, mvid: Int? = nil) {
+    init(id: Int, name: String, ar: [Artist]? = nil, al: Album? = nil, artists: [Artist]? = nil, album: Album? = nil, dt: Int? = nil, duration: Int? = nil, mv: Int? = nil, mvid: Int? = nil, fee: Int? = nil, privilege: TrackPrivilege? = nil) {
         self.id = id
         self.name = name
         self.ar = ar
@@ -130,7 +137,17 @@ struct Track: Codable, Identifiable {
         self.duration = duration
         self.mv = mv
         self.mvid = mvid
+        self.fee = fee
+        self.privilege = privilege
     }
+}
+
+struct TrackPrivilege: Codable {
+    let fee: Int?
+    let flag: Int?
+    let st: Int?
+    let pl: Int?
+    let maxbr: Int?
 }
 
 // MARK: - 歌手

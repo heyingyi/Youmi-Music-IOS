@@ -190,7 +190,7 @@ struct LibraryView: View {
                 ], spacing: 16) {
                     NavigationLink {
                         if let likedPlaylist = cloudPlaylists.first(where: { $0.isLikedPlaylist }) {
-                            CloudLikedSongsView(playlistId: likedPlaylist.id, songCount: likedSongIds.count)
+                            CloudLikedSongsView(playlist: likedPlaylist, songCount: likedSongIds.count)
                         }
                     } label: {
                         CloudFeatureCard(
@@ -657,6 +657,7 @@ struct CloudPlaylistDetailView: View {
     @State private var tracks: [CloudTrack] = []
     @State private var isLoading = true
     @ObservedObject private var audioPlayer = AudioPlayer.shared
+    @EnvironmentObject var authViewModel: AuthViewModel
     
     var body: some View {
         ZStack {
@@ -664,8 +665,19 @@ struct CloudPlaylistDetailView: View {
                 .environmentObject(ThemeManager.shared)
             ScrollView {
                 VStack(spacing: 0) {
-                    playlistHeader
-                    playAllButton
+                    PlaylistPageHeader(
+                        title: playlist.name,
+                        coverUrl: playlist.coverUrl,
+                        avatarUrl: authViewModel.currentUser?.avatarUrl,
+                        nickname: authViewModel.currentUser?.nickname ?? "",
+                        trackCount: tracks.count > 0 ? tracks.count : (playlist.trackCount ?? 0),
+                        playCount: playlist.playCount
+                    )
+                    PlaylistPlayAllBar(
+                        count: tracks.count,
+                        onPlayAll: playAll,
+                        onDownloadAll: downloadAll
+                    )
 
                     if isLoading {
                         ProgressView().padding(.top, 40)
@@ -676,7 +688,7 @@ struct CloudPlaylistDetailView: View {
                                     playTrack(track, index: index)
                                 }
                                 if index < tracks.count - 1 {
-                                    Divider().padding(.leading, 60)
+                                    Divider().padding(.leading, 86)
                                 }
                             }
                         }
@@ -691,50 +703,11 @@ struct CloudPlaylistDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadTracks() }
     }
-    
-    private var playlistHeader: some View {
-        VStack(spacing: 12) {
-            if let coverUrl = playlist.coverUrl, let url = URL(string: coverUrl) {
-                AsyncImage(url: url) { image in
-                    image.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Rectangle().fill(Color.gray.opacity(0.2))
-                }
-                .frame(width: 180, height: 180)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
-            }
-            
-            if let desc = playlist.description, !desc.isEmpty {
-                Text(desc)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .padding(.horizontal, 40)
-            }
+
+    private func downloadAll() {
+        for track in tracks {
+            SongDownloadService.shared.download(track: track.toTrack())
         }
-        .padding(.vertical, 20)
-    }
-    
-    private var playAllButton: some View {
-        Button(action: playAll) {
-            HStack {
-                Image(systemName: "play.fill")
-                Text("播放全部")
-                Text("(\(tracks.count))").foregroundColor(.white.opacity(0.8))
-            }
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                LinearGradient(colors: [.red, .red.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
-            )
-            .cornerRadius(25)
-        }
-        .padding(.horizontal, 40)
-        .padding(.bottom, 20)
-        .disabled(tracks.isEmpty)
     }
     
     private func loadTracks() async {
@@ -851,11 +824,14 @@ final class LikedSongsStore: ObservableObject {
 
 // MARK: - 喜欢的音乐页面
 struct CloudLikedSongsView: View {
-    let playlistId: Int
+    let playlist: CloudPlaylist
     let songCount: Int
     @StateObject private var likedStore: LikedSongsStore = .shared
     @ObservedObject private var audioPlayer = AudioPlayer.shared
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var authViewModel: AuthViewModel
+
+    private var playlistId: Int { playlist.id }
     
     var body: some View {
         ZStack {
@@ -863,8 +839,19 @@ struct CloudLikedSongsView: View {
                 .environmentObject(themeManager)
             ScrollView {
                 VStack(spacing: 0) {
-                    likedHeader
-                    playAllButton
+                    PlaylistPageHeader(
+                        title: playlist.name,
+                        coverUrl: playlist.coverUrl,
+                        avatarUrl: authViewModel.currentUser?.avatarUrl,
+                        nickname: authViewModel.currentUser?.nickname ?? "",
+                        trackCount: tracks.count > 0 ? tracks.count : songCount,
+                        playCount: playlist.playCount
+                    )
+                    PlaylistPlayAllBar(
+                        count: tracks.count,
+                        onPlayAll: playAll,
+                        onDownloadAll: downloadAll
+                    )
 
                     if isLoading {
                         VStack(spacing: 8) {
@@ -883,7 +870,7 @@ struct CloudLikedSongsView: View {
                                     playTrack(track, index: index)
                                 }
                                 if index < tracks.count - 1 {
-                                    Divider().padding(.leading, 60)
+                                    Divider().padding(.leading, 86)
                                 }
                             }
                         }
@@ -904,46 +891,6 @@ struct CloudLikedSongsView: View {
         }
     }
 
-    private var likedHeader: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                LinearGradient(colors: [.pink, .red], startPoint: .topLeading, endPoint: .bottomTrailing)
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.white)
-            }
-            .frame(width: 180, height: 180)
-            .cornerRadius(12)
-            .shadow(color: .pink.opacity(0.3), radius: 10, x: 0, y: 5)
-            
-            Text("\(songCount) 首喜欢的歌曲")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-        }
-        .padding(.vertical, 20)
-    }
-    
-    private var playAllButton: some View {
-        Button(action: playAll) {
-            HStack {
-                Image(systemName: "play.fill")
-                Text("播放全部")
-                Text("(\(tracks.count))").foregroundColor(.white.opacity(0.8))
-            }
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(
-                LinearGradient(colors: [.pink, .red], startPoint: .leading, endPoint: .trailing)
-            )
-            .cornerRadius(25)
-        }
-        .padding(.horizontal, 40)
-        .padding(.bottom, 20)
-        .disabled(tracks.isEmpty)
-    }
-
     private func playTrack(_ track: Track, index: Int) {
         audioPlayer.setPlaylist(tracks, startAt: index)
     }
@@ -951,6 +898,12 @@ struct CloudLikedSongsView: View {
     private func playAll() {
         guard !tracks.isEmpty else { return }
         audioPlayer.setPlaylist(tracks, startAt: 0)
+    }
+
+    private func downloadAll() {
+        for track in tracks {
+            SongDownloadService.shared.download(track: track)
+        }
     }
 
     private var tracks: [Track] { likedStore.tracks }
@@ -1166,10 +1119,15 @@ struct LikedTrackRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(track.name)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(isPlaying ? .red : .primary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(track.name)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(isPlaying ? .red : .primary)
+                            .lineLimit(1)
+                        if track.isVIP {
+                            VIPBadge()
+                        }
+                    }
 
                     Text(track.artistName)
                         .font(.caption)
@@ -1180,22 +1138,31 @@ struct LikedTrackRow: View {
                 Spacer()
 
                 if isPlaying {
-                    if #available(iOS 17.0, *) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 14))
-                            .foregroundColor(.red)
-                            .symbolEffect(.variableColor.iterative)
-                    } else {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 14))
-                            .foregroundColor(.red)
-                    }
+                    playingWaveform
+                } else {
+                    Text(track.durationText)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var playingWaveform: some View {
+        if #available(iOS 17.0, *) {
+            Image(systemName: "waveform")
+                .font(.system(size: 14))
+                .foregroundColor(.red)
+                .symbolEffect(.variableColor.iterative)
+        } else {
+            Image(systemName: "waveform")
+                .font(.system(size: 14))
+                .foregroundColor(.red)
+        }
     }
 }
 
@@ -1229,10 +1196,15 @@ struct CloudTrackRow: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(track.name)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(isPlaying ? .red : .primary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(track.name)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(isPlaying ? .red : .primary)
+                            .lineLimit(1)
+                        if track.isVIP {
+                            VIPBadge()
+                        }
+                    }
                     
                     Text(track.artistName)
                         .font(.caption)
@@ -1253,12 +1225,148 @@ struct CloudTrackRow: View {
                             .font(.system(size: 14))
                             .foregroundColor(.red)
                     }
+                } else {
+                    Text(track.durationText)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct PlaylistPageHeader: View {
+    let title: String
+    let coverUrl: String?
+    let avatarUrl: String?
+    let nickname: String
+    let trackCount: Int
+    let playCount: Int?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Group {
+                if let coverUrl, let url = URL(string: coverUrl) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Rectangle().fill(Color.gray.opacity(0.2))
+                    }
+                } else {
+                    LinearGradient(colors: [.pink, .red], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .overlay(
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 36))
+                                .foregroundColor(.white)
+                        )
+                }
+            }
+            .frame(width: 108, height: 108)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    if let avatarUrl, let url = URL(string: avatarUrl) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle().fill(Color.gray.opacity(0.2))
+                        }
+                        .frame(width: 22, height: 22)
+                        .clipShape(Circle())
+                    }
+                    Text(nickname)
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Text(metaText)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    private var metaText: String {
+        if let playCount, playCount > 0 {
+            return "\(trackCount) 首 · \(Self.formatPlayCount(playCount))次播放"
+        }
+        return "\(trackCount) 首"
+    }
+
+    private static func formatPlayCount(_ count: Int) -> String {
+        if count >= 100000000 {
+            return String(format: "%.1f亿", Double(count) / 100000000)
+        }
+        if count >= 10000 {
+            return String(format: "%.1f万", Double(count) / 10000)
+        }
+        return "\(count) "
+    }
+}
+
+struct PlaylistPlayAllBar: View {
+    let count: Int
+    let onPlayAll: () -> Void
+    let onDownloadAll: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onPlayAll) {
+                HStack {
+                    Image(systemName: "play.fill")
+                    Text("播放全部")
+                    Text("(\(count))").foregroundColor(.white.opacity(0.85))
+                }
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(colors: [.red.opacity(0.95), .red.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
+                )
+                .clipShape(Capsule())
+            }
+            .disabled(count == 0)
+
+            Button(action: onDownloadAll) {
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 46, height: 46)
+                    .background(Circle().fill(Color.primary.opacity(0.06)))
+            }
+            .disabled(count == 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
+    }
+}
+
+struct VIPBadge: View {
+    var body: some View {
+        Text("VIP")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(.red)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 3)
+                    .stroke(Color.red.opacity(0.85), lineWidth: 1)
+            )
     }
 }
 

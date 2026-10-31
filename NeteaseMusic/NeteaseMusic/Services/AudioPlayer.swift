@@ -113,6 +113,7 @@ class AudioPlayer: ObservableObject {
     @Published var lastError: AudioPlayerError?
     @Published var currentLocalTrack: LocalTrack?  // 当前播放的本地歌曲
     @Published var isPlayingLocal: Bool = false    // 是否在播放本地歌曲
+    @Published var thirdPartySourceName: String?
 
     // MARK: - 回调
     var onTimeUpdate: ((Double) -> Void)?
@@ -167,6 +168,7 @@ class AudioPlayer: ObservableObject {
     
     // 预加载缓存
     private var preloadedURLs: [Int: String] = [:]
+    private var customSourcedTrackIds: Set<Int> = []
     private let maxPreloadCacheCount = 20  // 限制预加载缓存数量
     private let preloadQueue = DispatchQueue(label: "audioPlayer.preload", qos: .utility)
     private var preloadTasks: [Int: Task<Void, Never>] = [:]  // 预加载任务管理
@@ -1698,15 +1700,30 @@ class AudioPlayer: ObservableObject {
     
     // MARK: - 获取歌曲URL（多级缓存）
     private func getSongUrl(id: Int) async throws -> String {
+        if customSourcedTrackIds.contains(id),
+           let cached = preloadedURLs[id] ?? songCache.getCachedUrl(songId: id, quality: sourceConfig.quality.rawValue) {
+            await MainActor.run { self.thirdPartySourceName = MusicSourceConfig.shared.customSourceDisplayName }
+            return cached
+        }
         if let url = try? await getNeteaseUrl(id: id) {
+            customSourcedTrackIds.remove(id)
+            await MainActor.run { self.thirdPartySourceName = nil }
             return url
         }
-        if let custom = await CustomAudioSourceService.resolve(id: id, quality: sourceConfig.quality.rawValue),
-           !custom.isEmpty {
-            preloadedURLs[id] = custom
-            songCache.cacheUrl(songId: id, url: custom, quality: sourceConfig.quality.rawValue)
-            return custom
+        let track = currentTrack
+        if let custom = await CustomAudioSourceService.resolve(
+            id: id,
+            quality: sourceConfig.quality.rawValue,
+            trackName: track?.name ?? "",
+            artistName: track?.artistName ?? ""
+        ) {
+            customSourcedTrackIds.insert(id)
+            preloadedURLs[id] = custom.url
+            songCache.cacheUrl(songId: id, url: custom.url, quality: sourceConfig.quality.rawValue)
+            await MainActor.run { self.thirdPartySourceName = custom.sourceName }
+            return custom.url
         }
+        await MainActor.run { self.thirdPartySourceName = nil }
         throw AudioPlayerError.noAvailableSource
     }
     

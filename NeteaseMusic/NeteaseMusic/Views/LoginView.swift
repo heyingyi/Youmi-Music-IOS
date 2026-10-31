@@ -838,64 +838,69 @@ struct MiniPlayerBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            // 封面和歌曲信息区域 - 使用 Button 确保点击可靠
+        ZStack {
             Button {
                 HapticFeedback.light()
                 showPlayer = true
             } label: {
-                HStack(spacing: 10) {
-                    // 封面
-                    miniPlayerCover
-                    
-                    // 歌曲信息
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(currentTrack?.name ?? "未播放")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(textColor)
-                            .lineLimit(1)
-                        
-                        Text(currentTrack?.artistName ?? "")
-                            .font(.system(size: 12))
-                            .foregroundColor(secondaryTextColor)
-                            .lineLimit(1)
+                Color.black.opacity(0.001)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 8) {
+                Button {
+                    HapticFeedback.light()
+                    showPlayer = true
+                } label: {
+                    HStack(spacing: 10) {
+                        miniPlayerCover
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(currentTrack?.name ?? "未播放")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(textColor)
+                                .lineLimit(1)
+                            Text(currentTrack?.artistName ?? "")
+                                .font(.system(size: 12))
+                                .foregroundColor(secondaryTextColor)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
                     }
-                    
-                    Spacer(minLength: 0)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(MiniPlayerTapStyle())
+
+                Button {
+                    HapticFeedback.light()
+                    AudioPlayer.shared.togglePlayPause()
+                } label: {
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(textColor)
+                        .frame(width: 52, height: 52)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(MiniPlayerTapStyle())
+
+                Button {
+                    HapticFeedback.light()
+                    AudioPlayer.shared.playNext()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(textColor)
+                        .frame(width: 52, height: 52)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(MiniPlayerTapStyle())
             }
-            .buttonStyle(MiniPlayerTapStyle())
-            
-            // 播放按钮
-            Button {
-                HapticFeedback.light()
-                AudioPlayer.shared.togglePlayPause()
-            } label: {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(textColor)
-                    .frame(width: 52, height: 52)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(MiniPlayerTapStyle())
-            
-            // 下一首按钮
-            Button {
-                HapticFeedback.light()
-                AudioPlayer.shared.playNext()
-            } label: {
-                Image(systemName: "forward.fill")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(textColor)
-                    .frame(width: 52, height: 52)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(MiniPlayerTapStyle())
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
         .frame(height: 72)
+        .background(Color.black.opacity(0.001))
         .background(miniPlayerBackground)
         .clipShape(Capsule())
         .contentShape(Capsule())
