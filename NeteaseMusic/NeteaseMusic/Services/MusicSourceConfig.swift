@@ -105,6 +105,9 @@ class MusicSourceConfig: ObservableObject {
     @Published var customSourceTemplate: String {
         didSet {
             userDefaults.set(customSourceTemplate, forKey: Keys.customSourceTemplate)
+            if !customSourceTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                enableCustomSource = true
+            }
         }
     }
 

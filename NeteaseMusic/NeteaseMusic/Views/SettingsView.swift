@@ -147,7 +147,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 LiquidGlassToggleRow(
                     title: "启用自定义音源",
-                    subtitle: "官方地址失败后使用 HTTP 模板或 lx/GitHub JS 插件",
+                    subtitle: "官方无完整音源（含 VIP 试听）时使用 HTTP 模板或 lx/GitHub JS 插件",
                     icon: "link",
                     iconColor: .blue,
                     isOn: $sourceConfig.enableCustomSource

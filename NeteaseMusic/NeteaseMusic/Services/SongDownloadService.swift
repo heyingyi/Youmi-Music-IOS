@@ -161,7 +161,11 @@ final class SongDownloadService: ObservableObject {
 
             updateProgress(trackId: track.id, progress: 0.05)
 
-            var audioUrlString = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality)
+            var audioUrlString: String?
+            if let play = try await KumoneMusicClient.shared.songPlayURL(id: track.id, level: quality),
+               !play.url.isEmpty, !play.isTrial {
+                audioUrlString = play.url
+            }
             if audioUrlString == nil || audioUrlString?.isEmpty == true {
                 audioUrlString = await CustomAudioSourceService.resolve(
                     id: track.id,

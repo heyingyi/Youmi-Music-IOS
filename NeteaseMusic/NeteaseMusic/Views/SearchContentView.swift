@@ -678,7 +678,18 @@ struct SearchMiniPlayerBar: View {
             }
             .buttonStyle(SearchMiniPlayerTapStyle())
             
-            // 播放/暂停按钮
+            Button {
+                HapticFeedback.light()
+                audioPlayer.playPrevious()
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(textColor)
+                    .frame(width: 44, height: 52)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(SearchMiniPlayerTapStyle())
+
             Button {
                 HapticFeedback.light()
                 audioPlayer.togglePlayPause()
@@ -686,12 +697,11 @@ struct SearchMiniPlayerBar: View {
                 Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(textColor)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 44, height: 52)
                     .contentShape(Rectangle())
             }
             .buttonStyle(SearchMiniPlayerTapStyle())
-            
-            // 下一首按钮
+
             Button {
                 HapticFeedback.light()
                 audioPlayer.playNext()
@@ -699,7 +709,7 @@ struct SearchMiniPlayerBar: View {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundColor(textColor)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 44, height: 52)
                     .contentShape(Rectangle())
             }
             .buttonStyle(SearchMiniPlayerTapStyle())

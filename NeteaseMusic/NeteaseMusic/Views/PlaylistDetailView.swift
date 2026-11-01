@@ -14,6 +14,15 @@ struct PlaylistDetailView: View {
     // 分页加载
     @State private var displayedTrackCount: Int = 50
     private let pageSize: Int = 50
+
+    // 搜索与排序
+    @State private var isSearching = false
+    @State private var searchText = ""
+    @State private var sortMode: PlaylistSortMode = .original
+
+    private var displayedTracks: [Track] {
+        PlaylistTrackFilter.tracks(playlist?.tracks ?? [], search: searchText, sort: sortMode)
+    }
     
     // 主题相关（使用 ThemeManager 集中管理的颜色）
     private var isStrangerTheme: Bool { themeManager.isStrangerTheme }
@@ -71,8 +80,8 @@ struct PlaylistDetailView: View {
     
     // MARK: - 顶部栏
     private var topBar: some View {
-        VStack {
-            HStack {
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 18, weight: .semibold))
@@ -81,7 +90,72 @@ struct PlaylistDetailView: View {
                         .background(Color.black.opacity(0.35))
                         .clipShape(Circle())
                 }
-                Spacer()
+                if isSearching {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.7))
+                        TextField("搜索歌单内歌曲", text: $searchText)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .foregroundColor(.white)
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.35), in: Capsule())
+                    Button("取消") {
+                        isSearching = false
+                        searchText = ""
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white)
+                } else {
+                    Spacer()
+                    Button {
+                        isSearching = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.black.opacity(0.35))
+                            .clipShape(Circle())
+                    }
+                    Menu {
+                        ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
+                            Button {
+                                sortMode = mode
+                            } label: {
+                                if sortMode == mode {
+                                    Label(mode.title, systemImage: "checkmark")
+                                } else {
+                                    Text(mode.title)
+                                }
+                            }
+                        }
+                        Divider()
+                        Button {
+                            Task { await loadPlaylist() }
+                        } label: {
+                            Label("刷新", systemImage: "arrow.clockwise")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.black.opacity(0.35))
+                            .clipShape(Circle())
+                    }
+                }
             }
             .padding(.horizontal, 16)
             Spacer()
@@ -149,6 +223,11 @@ struct PlaylistDetailView: View {
             }
             .frame(height: height)
             .offset(y: minY > 0 ? -minY : 0)  // 下拉时固定在顶部
+            .onChangeCompat(of: minY) { _, value in
+                if value > 70, !isSearching {
+                    isSearching = true
+                }
+            }
         }
         .frame(height: 380)
     }
@@ -218,8 +297,7 @@ struct PlaylistDetailView: View {
     }
 
     private func downloadAll() {
-        guard let tracks = playlist?.tracks else { return }
-        for track in tracks {
+        for track in displayedTracks {
             downloadService.download(track: track)
         }
     }
@@ -241,10 +319,11 @@ struct PlaylistDetailView: View {
             if isLoading {
                 TrackListSkeletonView(count: 10)
                     .padding(.top, 12)
-            } else if let tracks = playlist?.tracks, !tracks.isEmpty {
+            } else if !displayedTracks.isEmpty {
+                let tracks = displayedTracks
                 let currentTrackId = audioPlayer.currentTrack?.id
                 let isPlaying = audioPlayer.isPlaying
-                let visibleCount = min(displayedTrackCount, tracks.count)
+                let visibleCount = isSearching ? tracks.count : min(displayedTrackCount, tracks.count)
                 
                 ForEach(0..<visibleCount, id: \.self) { index in
                     let track = tracks[index]
@@ -330,7 +409,7 @@ struct PlaylistDetailView: View {
             } else {
                 HStack {
                     Spacer()
-                    Text("暂无歌曲")
+                    Text(isSearching && !searchText.isEmpty ? "没有找到相关歌曲" : "暂无歌曲")
                         .foregroundColor(.gray)
                     Spacer()
                 }
@@ -348,9 +427,9 @@ struct PlaylistDetailView: View {
     }
     
     private func playAll() {
-        if let tracks = playlist?.tracks, !tracks.isEmpty {
+        if !displayedTracks.isEmpty {
             audioPlayer.playMode = .order
-            audioPlayer.setPlaylist(tracks, startAt: 0)
+            audioPlayer.setPlaylist(displayedTracks, startAt: 0)
         }
     }
 
@@ -366,9 +445,9 @@ struct PlaylistDetailView: View {
     }
     
     private func playShuffle() {
-        if let tracks = playlist?.tracks, !tracks.isEmpty {
+        if !displayedTracks.isEmpty {
             audioPlayer.playMode = .random
-            audioPlayer.setPlaylist(tracks.shuffled(), startAt: 0)
+            audioPlayer.setPlaylist(displayedTracks.shuffled(), startAt: 0)
         }
     }
     

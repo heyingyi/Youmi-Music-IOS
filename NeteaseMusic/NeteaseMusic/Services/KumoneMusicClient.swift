@@ -128,13 +128,24 @@ final class KumoneMusicClient {
 
     // MARK: - Public song URL
 
-    func songURL(id: Int, level: String) async throws -> String? {
-        let info = try await songURLInfo(ids: [id], level: level)
-        if let url = info[id], !url.isEmpty { return url }
-        return nil
+    struct SongPlayURL {
+        let url: String
+        let durationMS: Int
+        let fee: Int
+        let payed: Int
+        let isTrial: Bool
     }
 
-    func songURLInfo(ids: [Int], level: String) async throws -> [Int: String] {
+    func songURL(id: Int, level: String) async throws -> String? {
+        try await songPlayURL(id: id, level: level)?.url
+    }
+
+    func songPlayURL(id: Int, level: String) async throws -> SongPlayURL? {
+        let info = try await songURLInfo(ids: [id], level: level)
+        return info[id]
+    }
+
+    func songURLInfo(ids: [Int], level: String) async throws -> [Int: SongPlayURL] {
         var payload: [String: Any] = [
             "ids": "[" + ids.map(String.init).joined(separator: ",") + "]",
             "level": level,
@@ -143,12 +154,28 @@ final class KumoneMusicClient {
         if level == "sky" { payload["immerseType"] = "c51" }
         let json = try await request("/api/song/enhance/player/url/v1", payload: payload, crypto: "eapi")
         let data = json["data"] as? [[String: Any]] ?? []
-        var result: [Int: String] = [:]
+        var result: [Int: SongPlayURL] = [:]
         for item in data {
             let id = intValue(item["id"])
-            if id != 0, let url = item["url"] as? String, !url.isEmpty {
-                result[id] = url
-            }
+            guard id != 0, let url = item["url"] as? String, !url.isEmpty else { continue }
+            let durationMS = intValue(item["time"])
+            let fee = intValue(item["fee"])
+            let payed = intValue(item["payed"])
+            let trialInfo = item["freeTrialInfo"]
+            let hasTrialInfo = {
+                if trialInfo == nil || trialInfo is NSNull { return false }
+                if let dict = trialInfo as? [String: Any], dict.isEmpty { return false }
+                return true
+            }()
+            let trialPrivilege = item["freeTrialPrivilege"] as? [String: Any]
+            let timeTrial = item["freeTimeTrialPrivilege"] as? [String: Any]
+            let privilegeTrial = (trialPrivilege?["resConsumable"] as? Bool == true)
+                && (trialPrivilege?["userConsumable"] as? Bool == false)
+            let timeTrialFlag = (timeTrial?["resConsumable"] as? Bool == true)
+                && (timeTrial?["userConsumable"] as? Bool == false)
+            let shortClip = durationMS > 0 && durationMS <= 35000
+            let isTrial = hasTrialInfo || privilegeTrial || timeTrialFlag || shortClip
+            result[id] = SongPlayURL(url: url, durationMS: durationMS, fee: fee, payed: payed, isTrial: isTrial)
         }
         return result
     }
@@ -543,6 +570,23 @@ final class KumoneMusicClient {
             let json = try await request("/api/v1/cloud/get", payload: [
                 "limit": intQuery(query, "limit", 50),
                 "offset": intQuery(query, "offset", 0)
+            ], crypto: "weapi")
+            return try pass(json)
+
+        case "dj/sublist":
+            let json = try await request("/api/djradio/get/subed", payload: [
+                "limit": intQuery(query, "limit", 100),
+                "offset": intQuery(query, "offset", 0),
+                "total": true
+            ], crypto: "weapi")
+            return try pass(json)
+
+        case "dj/program":
+            let json = try await request("/api/dj/program/byradio", payload: [
+                "radioId": intQuery(query, "rid"),
+                "limit": intQuery(query, "limit", 50),
+                "offset": intQuery(query, "offset", 0),
+                "asc": false
             ], crypto: "weapi")
             return try pass(json)
 

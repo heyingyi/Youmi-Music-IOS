@@ -90,6 +90,24 @@ class UserService {
         return response.data ?? []
     }
     
+    /// 获取订阅的播客
+    func getDJSublist() async throws -> [CloudDJRadio] {
+        let response: DJSublistResponse = try await network.get(endpoint: .djSublist)
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, "获取播客失败")
+        }
+        return response.djRadios ?? []
+    }
+
+    /// 获取播客节目
+    func getDJPrograms(rid: Int) async throws -> [CloudDJProgram] {
+        let response: DJProgramListResponse = try await network.get(endpoint: .djProgram(rid: rid))
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, "获取节目失败")
+        }
+        return response.programs ?? []
+    }
+
     /// 喜欢/取消喜欢歌曲
     /// - Parameters:
     ///   - id: 歌曲ID

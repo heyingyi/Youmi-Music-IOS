@@ -172,8 +172,10 @@ enum CustomAudioSourceService {
             let user = ns.substring(with: match.range(at: 1))
             let repo = ns.substring(with: match.range(at: 2))
             let branch = ns.substring(with: match.range(at: 3))
-            let path = ns.substring(with: match.range(at: 4))
-                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ns.substring(with: match.range(at: 4))
+            let rawPath = ns.substring(with: match.range(at: 4))
+            let path = rawPath.contains("%")
+                ? rawPath
+                : (rawPath.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? rawPath)
             return "https://raw.githubusercontent.com/\(user)/\(repo)/\(branch)/\(path)"
         }
         return trimmed.replacingOccurrences(of: "https://github.com/", with: "https://raw.githubusercontent.com/")
@@ -222,16 +224,20 @@ enum CustomAudioSourceService {
                     }
                     var request = URLRequest(url: url)
                     request.httpMethod = "GET"
-                    request.timeoutInterval = 6
+                    request.timeoutInterval = 8
                     request.setValue("application/json", forHTTPHeaderField: "Accept")
                     request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-                    if let options, options.isObject,
-                       let headers = options.forProperty("headers"), headers.isObject,
-                       let keys = headers.toDictionary()?.keys {
-                        for key in keys {
-                            let name = String(describing: key)
-                            if let value = headers.forProperty(name).toString() {
-                                request.setValue(value, forHTTPHeaderField: name)
+                    if let options, options.isObject {
+                        if let method = options.forProperty("method").toString(), !method.isEmpty {
+                            request.httpMethod = method.uppercased()
+                        }
+                        if let headers = options.forProperty("headers"), headers.isObject,
+                           let keys = headers.toDictionary()?.keys {
+                            for key in keys {
+                                let name = String(describing: key)
+                                if let value = headers.forProperty(name).toString() {
+                                    request.setValue(value, forHTTPHeaderField: name)
+                                }
                             }
                         }
                     }

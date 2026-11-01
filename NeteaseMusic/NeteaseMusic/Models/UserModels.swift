@@ -339,6 +339,93 @@ struct CloudArtist: Codable {
     let name: String
 }
 
+// MARK: - 播客
+struct DJSublistResponse: Codable {
+    let code: Int
+    let count: Int?
+    let djRadios: [CloudDJRadio]?
+}
+
+struct CloudDJRadio: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let picUrl: String?
+    let dj: CloudDJCreator?
+    let programCount: Int?
+    let playCount: Int?
+    let desc: String?
+
+    var coverUrl: String? {
+        picUrl?.replacingOccurrences(of: "http://", with: "https://")
+    }
+
+    var creatorName: String {
+        dj?.nickname ?? ""
+    }
+}
+
+struct CloudDJCreator: Codable {
+    let nickname: String?
+}
+
+struct DJProgramListResponse: Codable {
+    let code: Int
+    let count: Int?
+    let programs: [CloudDJProgram]?
+}
+
+struct CloudDJProgram: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let coverUrl: String?
+    let duration: Int?
+    let listenerCount: Int?
+    let createTime: Int64?
+    let description: String?
+    let mainSong: CloudDJMainSong?
+    let radio: CloudDJRadioBrief?
+
+    var artworkUrl: String? {
+        (coverUrl ?? mainSong?.album?.picUrl)?.replacingOccurrences(of: "http://", with: "https://")
+    }
+
+    var durationText: String {
+        let seconds = (duration ?? mainSong?.duration ?? 0) / 1000
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    func toTrack() -> Track? {
+        guard let song = mainSong else { return nil }
+        return Track(
+            id: song.id,
+            name: song.name ?? name,
+            ar: song.artistList?.map { Artist(id: $0.id, name: $0.name) },
+            al: song.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: $0.picUrl) },
+            dt: song.durationMS ?? duration
+        )
+    }
+}
+
+struct CloudDJMainSong: Codable {
+    let id: Int
+    let name: String?
+    let duration: Int?
+    let dt: Int?
+    let artists: [CloudTrackArtist]?
+    let ar: [CloudTrackArtist]?
+    let album: CloudTrackAlbum?
+    let al: CloudTrackAlbum?
+
+    var artistList: [CloudTrackArtist]? { artists ?? ar }
+    var albumInfo: CloudTrackAlbum? { album ?? al }
+    var durationMS: Int? { duration ?? dt }
+}
+
+struct CloudDJRadioBrief: Codable {
+    let id: Int?
+    let name: String?
+}
+
 // MARK: - 云端歌曲模型
 struct CloudTrack: Codable, Identifiable {
     let id: Int

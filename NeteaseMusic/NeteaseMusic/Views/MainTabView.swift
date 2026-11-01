@@ -19,6 +19,8 @@ struct MainTabView: View {
     @ObservedObject private var audioPlayer = AudioPlayer.shared
     @State private var showPlayer = false
     @State private var showMoodRecommend = false
+    @State private var sourceToast: String?
+    @State private var sourceToastToken = 0
     
     // 键盘预热 - 使用 AppStorage 避免主题切换时重置
     @AppStorage("keyboard_warmed_up") private var keyboardWarmedUp = false
@@ -53,6 +55,37 @@ struct MainTabView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 showLogin = true
             }
+        }
+        .onChangeCompat(of: audioPlayer.thirdPartySourceName) { _, newValue in
+            presentSourceToast(newValue)
+        }
+        .overlay(alignment: .top) {
+            if let message = sourceToast {
+                Text(message)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.black.opacity(0.78)))
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: sourceToast)
+    }
+
+    private func presentSourceToast(_ name: String?) {
+        sourceToastToken += 1
+        let token = sourceToastToken
+        guard let name, !name.isEmpty else {
+            sourceToast = nil
+            return
+        }
+        sourceToast = "已使用第三方音源：\(name)"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+            guard token == sourceToastToken else { return }
+            sourceToast = nil
         }
     }
     
@@ -313,6 +346,16 @@ struct iOS18SidebarMiniPlayer: View {
                     
                     Button {
                         HapticFeedback.light()
+                        audioPlayer.playPrevious()
+                    } label: {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.primary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        HapticFeedback.light()
                         audioPlayer.togglePlayPause()
                     } label: {
                         Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
@@ -437,7 +480,17 @@ struct iOS26FloatingMiniPlayer: View {
             }
             .buttonStyle(.plain)
 
-            // 播放/暂停
+            Button {
+                HapticFeedback.light()
+                audioPlayer.playPrevious()
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.primary)
+                    .frame(width: 40, height: 48)
+                    .contentShape(Rectangle())
+            }
+
             Button {
                 HapticFeedback.light()
                 audioPlayer.togglePlayPause()
@@ -445,11 +498,10 @@ struct iOS26FloatingMiniPlayer: View {
                 Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 48)
                     .contentShape(Rectangle())
             }
-            
-            // 下一首
+
             Button {
                 HapticFeedback.light()
                 audioPlayer.playNext()
@@ -457,7 +509,7 @@ struct iOS26FloatingMiniPlayer: View {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 48)
                     .contentShape(Rectangle())
             }
         }
@@ -541,7 +593,16 @@ struct iOS26SimpleMiniPlayer: View {
                 }
             }
             
-            // 播放/暂停
+            Button(action: {
+                HapticFeedback.light()
+                audioPlayer.playPrevious()
+            }) {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.primary)
+                    .frame(width: 40, height: 48)
+            }
+
             Button(action: {
                 HapticFeedback.light()
                 audioPlayer.togglePlayPause()
@@ -549,10 +610,9 @@ struct iOS26SimpleMiniPlayer: View {
                 Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 48)
             }
             
-            // 下一首
             Button(action: {
                 HapticFeedback.light()
                 audioPlayer.playNext()
@@ -560,7 +620,7 @@ struct iOS26SimpleMiniPlayer: View {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 48)
             }
         }
         .buttonStyle(BorderlessButtonStyle()) // 关键：使用 BorderlessButtonStyle
@@ -646,7 +706,17 @@ struct iOS26MiniPlayerOverlay: View {
             }
             .buttonStyle(.plain)
             
-            // 播放/暂停按钮
+            Button {
+                HapticFeedback.light()
+                audioPlayer.playPrevious()
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.primary)
+                    .frame(width: 40, height: 48)
+            }
+            .buttonStyle(.plain)
+
             Button {
                 HapticFeedback.light()
                 audioPlayer.togglePlayPause()
@@ -654,11 +724,10 @@ struct iOS26MiniPlayerOverlay: View {
                 Image(systemName: audioPlayer.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 48)
             }
             .buttonStyle(.plain)
             
-            // 下一首按钮
             Button {
                 HapticFeedback.light()
                 audioPlayer.playNext()
@@ -666,7 +735,7 @@ struct iOS26MiniPlayerOverlay: View {
                 Image(systemName: "forward.fill")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.primary)
-                    .frame(width: 48, height: 48)
+                    .frame(width: 40, height: 48)
             }
             .buttonStyle(.plain)
         }
@@ -708,21 +777,28 @@ struct iOS26MiniPlayer: View {
             // 播放器信息区域
             miniPlayerInfoButton
             
-            // 播放/暂停按钮
+            miniPlayerButton(
+                systemImage: "backward.fill",
+                size: 18,
+                frameSize: 44
+            ) {
+                HapticFeedback.light()
+                audioPlayer.playPrevious()
+            }
+
             miniPlayerButton(
                 systemImage: audioPlayer.isPlaying ? "pause.fill" : "play.fill",
                 size: 22,
-                frameSize: 52
+                frameSize: 48
             ) {
                 HapticFeedback.light()
                 audioPlayer.togglePlayPause()
             }
             
-            // 下一首按钮
             miniPlayerButton(
                 systemImage: "forward.fill",
                 size: 18,
-                frameSize: 52
+                frameSize: 44
             ) {
                 HapticFeedback.light()
                 audioPlayer.playNext()

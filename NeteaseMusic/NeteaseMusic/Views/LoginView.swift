@@ -874,12 +874,24 @@ struct MiniPlayerBar: View {
 
                 Button {
                     HapticFeedback.light()
+                    AudioPlayer.shared.playPrevious()
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(textColor)
+                        .frame(width: 44, height: 52)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(MiniPlayerTapStyle())
+
+                Button {
+                    HapticFeedback.light()
                     AudioPlayer.shared.togglePlayPause()
                 } label: {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(textColor)
-                        .frame(width: 52, height: 52)
+                        .frame(width: 44, height: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(MiniPlayerTapStyle())
@@ -891,7 +903,7 @@ struct MiniPlayerBar: View {
                     Image(systemName: "forward.fill")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(textColor)
-                        .frame(width: 52, height: 52)
+                        .frame(width: 44, height: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(MiniPlayerTapStyle())

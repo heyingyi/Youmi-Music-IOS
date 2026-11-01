@@ -32,6 +32,8 @@ enum APIEndpoint {
     case like(id: Int, like: Bool)   // 喜欢/取消喜欢歌曲
     case albumSublist                // 获取收藏的专辑
     case playlistDetail(id: Int)     // 获取歌单详情
+    case djSublist                   // 订阅的播客
+    case djProgram(rid: Int)         // 播客节目列表
 
     var path: String {
         switch self {
@@ -65,6 +67,10 @@ enum APIEndpoint {
             return "/album/sublist"
         case .playlistDetail(let id):
             return "/playlist/detail?id=\(id)"
+        case .djSublist:
+            return "/dj/sublist"
+        case .djProgram(let rid):
+            return "/dj/program?rid=\(rid)&limit=50&offset=0"
         }
     }
     

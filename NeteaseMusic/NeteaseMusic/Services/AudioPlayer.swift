@@ -935,8 +935,19 @@ class AudioPlayer: ObservableObject {
     
     /// 播放上一首
     func playPrevious() {
-        guard !playlist.isEmpty else { return }
-        
+        if playlist.isEmpty {
+            if let currentTrack = currentTrack {
+                let history = LocalStorageService.shared.getHistory()
+                if let currentIndex = history.firstIndex(where: { $0.id == currentTrack.id }),
+                   currentIndex > 0 {
+                    Task { await play(track: history[currentIndex - 1]) }
+                } else if let last = history.last, last.id != currentTrack.id {
+                    Task { await play(track: last) }
+                }
+            }
+            return
+        }
+
         let prevIndex: Int
         switch playMode {
         case .order, .repeatOne:
@@ -944,7 +955,7 @@ class AudioPlayer: ObservableObject {
         case .random:
             prevIndex = Int.random(in: 0..<playlist.count)
         }
-        
+
         currentIndex = prevIndex
         Task {
             await play(track: playlist[prevIndex])
@@ -1710,38 +1721,41 @@ class AudioPlayer: ObservableObject {
             await MainActor.run { self.thirdPartySourceName = nil }
             return url
         }
+        if let custom = await resolveCustomSource(id: id) {
+            return custom
+        }
+        await MainActor.run { self.thirdPartySourceName = nil }
+        throw AudioPlayerError.noAvailableSource
+    }
+
+    private func resolveCustomSource(id: Int) async -> String? {
         let track = currentTrack
-        if let custom = await CustomAudioSourceService.resolve(
+        guard let custom = await CustomAudioSourceService.resolve(
             id: id,
             quality: sourceConfig.quality.rawValue,
             trackName: track?.name ?? "",
             artistName: track?.artistName ?? ""
-        ) {
-            customSourcedTrackIds.insert(id)
-            preloadedURLs[id] = custom.url
-            songCache.cacheUrl(songId: id, url: custom.url, quality: sourceConfig.quality.rawValue)
-            await MainActor.run { self.thirdPartySourceName = custom.sourceName }
-            return custom.url
-        }
-        await MainActor.run { self.thirdPartySourceName = nil }
-        throw AudioPlayerError.noAvailableSource
+        ) else { return nil }
+        customSourcedTrackIds.insert(id)
+        preloadedURLs[id] = custom.url
+        songCache.cacheUrl(songId: id, url: custom.url, quality: sourceConfig.quality.rawValue)
+        await MainActor.run { self.thirdPartySourceName = custom.sourceName }
+        return custom.url
     }
     
     // 获取网易云音乐URL
     private func getNeteaseUrl(id: Int) async throws -> String {
         let quality = sourceConfig.quality.rawValue
         
-        // 1. 先检查内存预加载缓存
-        if let cachedUrl = preloadedURLs[id] {
-            #if DEBUG
-            print(" 使用预加载缓存: \(id)")
-            #endif
-            return cachedUrl
-        }
-        
-        // 2. 检查持久化缓存
-        if let cachedUrl = songCache.getCachedUrl(songId: id, quality: quality) {
-            preloadedURLs[id] = cachedUrl
+        if !sourceConfig.enableCustomSource {
+            if let cachedUrl = preloadedURLs[id] {
+                return cachedUrl
+            }
+            if let cachedUrl = songCache.getCachedUrl(songId: id, quality: quality) {
+                preloadedURLs[id] = cachedUrl
+                return cachedUrl
+            }
+        } else if let cachedUrl = preloadedURLs[id], !customSourcedTrackIds.contains(id) {
             return cachedUrl
         }
         
@@ -1750,14 +1764,14 @@ class AudioPlayer: ObservableObject {
         print(" 请求音质: \(quality)")
         #endif
 
-        if let resultUrl = try await KumoneMusicClient.shared.songURL(id: id, level: quality),
-           !resultUrl.isEmpty {
+        if let play = try await KumoneMusicClient.shared.songPlayURL(id: id, level: quality),
+           !play.url.isEmpty, !play.isTrial {
             await MainActor.run {
                 self.actualQuality = quality
             }
-            preloadedURLs[id] = resultUrl
-            songCache.cacheUrl(songId: id, url: resultUrl, quality: quality)
-            return resultUrl
+            preloadedURLs[id] = play.url
+            songCache.cacheUrl(songId: id, url: play.url, quality: quality)
+            return play.url
         }
 
         throw AudioPlayerError.noAvailableSource
@@ -1814,15 +1828,15 @@ class AudioPlayer: ObservableObject {
             do {
                 if Task.isCancelled { return }
 
-                let resultUrl = try await KumoneMusicClient.shared.songURL(id: track.id, level: quality)
+                let play = try await KumoneMusicClient.shared.songPlayURL(id: track.id, level: quality)
 
                 if Task.isCancelled { return }
 
-                if let resultUrl, !resultUrl.isEmpty {
+                if let play, !play.url.isEmpty, !play.isTrial {
                     await MainActor.run {
-                        self.preloadedURLs[track.id] = resultUrl
+                        self.preloadedURLs[track.id] = play.url
                     }
-                    self.songCache.cacheUrl(songId: track.id, url: resultUrl, quality: quality)
+                    self.songCache.cacheUrl(songId: track.id, url: play.url, quality: quality)
                     
                     #if DEBUG
                     print(" 预加载完成: \(track.name)")
