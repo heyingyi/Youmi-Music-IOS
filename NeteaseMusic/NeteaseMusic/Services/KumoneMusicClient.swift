@@ -584,7 +584,7 @@ final class KumoneMusicClient {
         case "dj/program":
             let json = try await request("/api/dj/program/byradio", payload: [
                 "radioId": intQuery(query, "rid"),
-                "limit": intQuery(query, "limit", 50),
+                "limit": intQuery(query, "limit", 100),
                 "offset": intQuery(query, "offset", 0),
                 "asc": false
             ], crypto: "weapi")

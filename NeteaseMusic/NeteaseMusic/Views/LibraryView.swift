@@ -11,6 +11,7 @@ struct LibraryView: View {
     @State private var cloudAlbums: [CloudAlbum] = []
     @State private var cloudPodcasts: [CloudDJRadio] = []
     @State private var likedSongIds: [Int] = []
+    @State private var cloudDiskCount: Int?
     @State private var isLoadingCloud = false
     
     private let userService = UserService.shared
@@ -75,6 +76,7 @@ struct LibraryView: View {
                 cloudAlbums = []
                 cloudPodcasts = []
                 likedSongIds = []
+                cloudDiskCount = nil
             } else if authViewModel.currentUser == nil {
                 Task { await authViewModel.fetchCurrentUser() }
             }
@@ -118,11 +120,15 @@ struct LibraryView: View {
             async let albums = userService.getAlbumSublist()
             async let likeIds = userService.getLikeList(uid: userId)
             async let radios = userService.getDJSublist()
+            async let disk = MusicService.shared.getCloudDisk(limit: 1, offset: 0)
 
             cloudPlaylists = try await playlists
             cloudAlbums = try await albums
             likedSongIds = try await likeIds
             cloudPodcasts = (try? await radios) ?? []
+            if let disk = try? await disk {
+                cloudDiskCount = disk.count ?? disk.data?.count
+            }
         } catch {
             #if DEBUG
             print("加载云端数据失败: \(error)")
@@ -250,7 +256,7 @@ struct LibraryView: View {
                             icon: "cloud.fill",
                             iconColor: .blue,
                             title: "我的云盘",
-                            count: nil
+                            count: cloudDiskCount
                         )
                     }
                     .buttonStyle(.plain)
@@ -674,6 +680,7 @@ struct CloudPlaylistDetailView: View {
     @State private var isSearching = false
     @State private var searchText = ""
     @State private var sortMode: PlaylistSortMode = .original
+    @State private var showDownloadSheet = false
     @ObservedObject private var audioPlayer = AudioPlayer.shared
     @EnvironmentObject var authViewModel: AuthViewModel
 
@@ -728,22 +735,19 @@ struct CloudPlaylistDetailView: View {
             }
         }
         .immersiveNavigationChrome()
-        .navigationTitle(isSearching ? "搜索歌单内歌曲" : playlist.name)
+        .navigationTitle(playlist.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            PlaylistMoreToolbar(
-                isSearching: $isSearching,
-                sortMode: $sortMode,
-                onRefresh: { Task { await loadTracks() } }
-            )
+            PlaylistMoreToolbar(sortMode: $sortMode)
+        }
+        .sheet(isPresented: $showDownloadSheet) {
+            PlaylistDownloadSheet(tracks: displayedTracks.map { $0.toTrack() })
         }
         .task { await loadTracks() }
     }
 
     private func downloadAll() {
-        for track in displayedTracks {
-            SongDownloadService.shared.download(track: track.toTrack())
-        }
+        showDownloadSheet = true
     }
     
     private func loadTracks() async {
@@ -869,6 +873,7 @@ struct CloudLikedSongsView: View {
     @State private var isSearching = false
     @State private var searchText = ""
     @State private var sortMode: PlaylistSortMode = .original
+    @State private var showDownloadSheet = false
 
     private var playlistId: Int { playlist.id }
     private var displayedTracks: [Track] {
@@ -930,14 +935,13 @@ struct CloudLikedSongsView: View {
             }
         }
         .immersiveNavigationChrome()
-        .navigationTitle(isSearching ? "搜索歌单内歌曲" : "喜欢的音乐")
+        .navigationTitle("喜欢的音乐")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            PlaylistMoreToolbar(
-                isSearching: $isSearching,
-                sortMode: $sortMode,
-                onRefresh: { likedStore.refresh(playlistId: playlistId, songCount: songCount) }
-            )
+            PlaylistMoreToolbar(sortMode: $sortMode)
+        }
+        .sheet(isPresented: $showDownloadSheet) {
+            PlaylistDownloadSheet(tracks: displayedTracks)
         }
         .onAppear {
             likedStore.ensureLoaded(playlistId: playlistId, songCount: songCount)
@@ -957,9 +961,7 @@ struct CloudLikedSongsView: View {
     }
 
     private func downloadAll() {
-        for track in displayedTracks {
-            SongDownloadService.shared.download(track: track)
-        }
+        showDownloadSheet = true
     }
 
     private var tracks: [Track] { likedStore.tracks }
@@ -1488,7 +1490,7 @@ struct PlaylistPullSearchSensor: View {
                         return
                     }
                     guard !isSearching, let base = baseline else { return }
-                    if minY - base > 80 {
+                    if minY - base > 120 {
                         isSearching = true
                     }
                 }
@@ -1525,45 +1527,149 @@ struct PlaylistInlineSearchBar: View {
     }
 }
 
+struct PlaylistDownloadSheet: View {
+    let tracks: [Track]
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedQuality: MusicQuality = MusicSourceConfig.shared.quality
+    @State private var selectedIds: Set<Int> = []
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                qualityPicker
+                Divider()
+                selectionBar
+                trackList
+            }
+            .navigationTitle("下载歌曲")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("下载") { startDownload() }
+                        .disabled(selectedIds.isEmpty)
+                }
+            }
+            .onAppear {
+                selectedIds = Set(tracks.map(\.id))
+            }
+        }
+    }
+
+    private var qualityPicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("下载音质")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(MusicQuality.allCases) { quality in
+                        Button {
+                            selectedQuality = quality
+                        } label: {
+                            Text(quality.displayName)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(selectedQuality == quality ? .white : .primary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule().fill(selectedQuality == quality ? Color.red : Color.primary.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var selectionBar: some View {
+        HStack {
+            Button(selectedIds.count == tracks.count ? "取消全选" : "全选") {
+                if selectedIds.count == tracks.count {
+                    selectedIds.removeAll()
+                } else {
+                    selectedIds = Set(tracks.map(\.id))
+                }
+            }
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(.red)
+            Spacer()
+            Text("已选 \(selectedIds.count)/\(tracks.count) 首")
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private var trackList: some View {
+        List {
+            ForEach(tracks) { track in
+                Button {
+                    if selectedIds.contains(track.id) {
+                        selectedIds.remove(track.id)
+                    } else {
+                        selectedIds.insert(track.id)
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: selectedIds.contains(track.id) ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(selectedIds.contains(track.id) ? .red : .secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(track.name)
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                if track.isVIP {
+                                    VIPBadge()
+                                }
+                            }
+                            Text(track.artistName)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    private func startDownload() {
+        let chosen = tracks.filter { selectedIds.contains($0.id) }
+        SongDownloadService.shared.downloadBatch(tracks: chosen, quality: selectedQuality.rawValue)
+        dismiss()
+    }
+}
+
 struct PlaylistMoreToolbar: ToolbarContent {
-    @Binding var isSearching: Bool
     @Binding var sortMode: PlaylistSortMode
-    let onRefresh: () -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigationBarTrailing) {
-            HStack(spacing: 12) {
-                Menu {
+            Menu {
+                ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
                     Button {
-                        isSearching = true
+                        sortMode = mode
                     } label: {
-                        Label("在歌单内查找", systemImage: "magnifyingglass")
-                    }
-                    Menu {
-                        ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
-                            Button {
-                                sortMode = mode
-                            } label: {
-                                if sortMode == mode {
-                                    Label(mode.title, systemImage: "checkmark")
-                                } else {
-                                    Text(mode.title)
-                                }
-                            }
+                        if sortMode == mode {
+                            Label(mode.title, systemImage: "checkmark")
+                        } else {
+                            Text(mode.title)
                         }
-                    } label: {
-                        Label("排序方式", systemImage: "arrow.up.arrow.down")
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
                 }
-                Button(action: onRefresh) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.red)
-                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.red)
             }
         }
     }
@@ -1653,9 +1759,18 @@ struct CloudPodcastDetailView: View {
                     )
                     if isLoading {
                         ProgressView().padding(.top, 40)
+                    } else if programs.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "mic")
+                                .font(.system(size: 32))
+                                .foregroundColor(.secondary)
+                            Text("暂无节目")
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 40)
                     } else {
                         LazyVStack(spacing: 0) {
-                            ForEach(Array(programs.enumerated()), id: \.element.id) { index, program in
+                            ForEach(Array(programs.enumerated()), id: \.offset) { index, program in
                                 Button {
                                     play(program, index: index)
                                 } label: {
@@ -1717,13 +1832,9 @@ struct CloudPodcastDetailView: View {
     }
 
     private func play(_ program: CloudDJProgram, index: Int) {
-        let playable = programs.enumerated().compactMap { offset, item in
-            item.toTrack().map { (offset, $0) }
-        }
-        guard !playable.isEmpty else { return }
-        let tracks = playable.map { $0.1 }
-        let start = playable.firstIndex { $0.0 == index }.map { $0 } ?? 0
-        audioPlayer.setPlaylist(tracks, startAt: start)
+        let tracks = programs.map { $0.toTrack() }
+        guard !tracks.isEmpty else { return }
+        audioPlayer.setPlaylist(tracks, startAt: index)
     }
 }
 

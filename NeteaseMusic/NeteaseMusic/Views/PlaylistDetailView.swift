@@ -19,6 +19,7 @@ struct PlaylistDetailView: View {
     @State private var isSearching = false
     @State private var searchText = ""
     @State private var sortMode: PlaylistSortMode = .original
+    @State private var showDownloadSheet = false
 
     private var displayedTracks: [Track] {
         PlaylistTrackFilter.tracks(playlist?.tracks ?? [], search: searchText, sort: sortMode)
@@ -63,6 +64,9 @@ struct PlaylistDetailView: View {
             topBar
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showDownloadSheet) {
+            PlaylistDownloadSheet(tracks: displayedTracks)
+        }
         .task {
             await loadPlaylist()
         }
@@ -119,16 +123,6 @@ struct PlaylistDetailView: View {
                     .foregroundColor(.white)
                 } else {
                     Spacer()
-                    Button {
-                        isSearching = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Color.black.opacity(0.35))
-                            .clipShape(Circle())
-                    }
                     Menu {
                         ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
                             Button {
@@ -141,16 +135,10 @@ struct PlaylistDetailView: View {
                                 }
                             }
                         }
-                        Divider()
-                        Button {
-                            Task { await loadPlaylist() }
-                        } label: {
-                            Label("刷新", systemImage: "arrow.clockwise")
-                        }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.red)
                             .frame(width: 36, height: 36)
                             .background(Color.black.opacity(0.35))
                             .clipShape(Circle())
@@ -224,7 +212,7 @@ struct PlaylistDetailView: View {
             .frame(height: height)
             .offset(y: minY > 0 ? -minY : 0)  // 下拉时固定在顶部
             .onChangeCompat(of: minY) { _, value in
-                if value > 70, !isSearching {
+                if value > 120, !isSearching {
                     isSearching = true
                 }
             }
@@ -297,9 +285,7 @@ struct PlaylistDetailView: View {
     }
 
     private func downloadAll() {
-        for track in displayedTracks {
-            downloadService.download(track: track)
-        }
+        showDownloadSheet = true
     }
     
     private var playGradient: LinearGradient {

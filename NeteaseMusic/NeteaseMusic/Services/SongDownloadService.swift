@@ -22,6 +22,7 @@ struct DownloadTask: Identifiable {
     var status: DownloadStatus
     var progress: Double
     var localURL: URL?
+    var quality: String
 }
 
 // MARK: - 歌曲下载服务
@@ -62,7 +63,7 @@ final class SongDownloadService: ObservableObject {
     }
     
     /// 下载歌曲
-    func download(track: Track) {
+    func download(track: Track, quality: String? = nil) {
         // 检查是否已下载
         if isDownloaded(trackId: track.id) {
             #if DEBUG
@@ -84,7 +85,8 @@ final class SongDownloadService: ObservableObject {
             id: track.id,
             track: track,
             status: .waiting,
-            progress: 0
+            progress: 0,
+            quality: quality ?? sourceConfig.quality.rawValue
         )
         downloadTasks[track.id] = task
         downloadQueue.append(track.id)
@@ -98,9 +100,9 @@ final class SongDownloadService: ObservableObject {
     }
     
     /// 批量下载
-    func downloadBatch(tracks: [Track]) {
+    func downloadBatch(tracks: [Track], quality: String? = nil) {
         for track in tracks {
-            download(track: track)
+            download(track: track, quality: quality)
         }
     }
     
@@ -153,7 +155,7 @@ final class SongDownloadService: ObservableObject {
         let track = task.track
         
         do {
-            let quality = sourceConfig.quality.rawValue
+            let quality = task.quality.isEmpty ? sourceConfig.quality.rawValue : task.quality
 
             #if DEBUG
             print("📥 开始下载: \(track.name)")

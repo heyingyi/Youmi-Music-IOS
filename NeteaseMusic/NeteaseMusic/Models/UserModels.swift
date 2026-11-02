@@ -32,6 +32,41 @@ private enum JSONFlex {
         }
         return nil
     }
+
+    static func array<T: Decodable, K: CodingKey>(_ c: KeyedDecodingContainer<K>, _ key: K) -> [T]? {
+        guard var unkeyed = try? c.nestedUnkeyedContainer(forKey: key) else { return nil }
+        var items: [T] = []
+        while !unkeyed.isAtEnd {
+            if let item = try? unkeyed.decode(T.self) {
+                items.append(item)
+            } else {
+                _ = try? unkeyed.decode(JSONSkip.self)
+            }
+        }
+        return items
+    }
+}
+
+private struct JSONSkip: Decodable {
+    init(from decoder: Decoder) throws {
+        if var unkeyed = try? decoder.unkeyedContainer() {
+            while !unkeyed.isAtEnd {
+                _ = try? unkeyed.decode(JSONSkip.self)
+            }
+            return
+        }
+        if let _ = try? decoder.container(keyedBy: JSONSkipKey.self) {
+            return
+        }
+        _ = try? decoder.singleValueContainer()
+    }
+}
+
+private struct JSONSkipKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { self.stringValue = String(intValue); self.intValue = intValue }
 }
 
 // MARK: - 登录响应
@@ -340,13 +375,24 @@ struct CloudArtist: Codable {
 }
 
 // MARK: - 播客
-struct DJSublistResponse: Codable {
+struct DJSublistResponse: Decodable {
     let code: Int
     let count: Int?
     let djRadios: [CloudDJRadio]?
+
+    enum CodingKeys: String, CodingKey {
+        case code, count, djRadios, data
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        count = JSONFlex.int(c, .count)
+        djRadios = JSONFlex.array(c, .djRadios) ?? JSONFlex.array(c, .data)
+    }
 }
 
-struct CloudDJRadio: Codable, Identifiable {
+struct CloudDJRadio: Decodable, Identifiable {
     let id: Int
     let name: String
     let picUrl: String?
@@ -354,6 +400,21 @@ struct CloudDJRadio: Codable, Identifiable {
     let programCount: Int?
     let playCount: Int?
     let desc: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, picUrl, dj, programCount, playCount, desc
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+        picUrl = JSONFlex.string(c, .picUrl)
+        dj = try? c.decodeIfPresent(CloudDJCreator.self, forKey: .dj)
+        programCount = JSONFlex.int(c, .programCount)
+        playCount = JSONFlex.int(c, .playCount)
+        desc = JSONFlex.string(c, .desc)
+    }
 
     var coverUrl: String? {
         picUrl?.replacingOccurrences(of: "http://", with: "https://")
@@ -364,17 +425,37 @@ struct CloudDJRadio: Codable, Identifiable {
     }
 }
 
-struct CloudDJCreator: Codable {
+struct CloudDJCreator: Decodable {
     let nickname: String?
+
+    enum CodingKeys: String, CodingKey { case nickname }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nickname = JSONFlex.string(c, .nickname)
+    }
 }
 
-struct DJProgramListResponse: Codable {
+struct DJProgramListResponse: Decodable {
     let code: Int
     let count: Int?
     let programs: [CloudDJProgram]?
+    let more: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case code, count, programs, more, djPrograms
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        count = JSONFlex.int(c, .count)
+        more = JSONFlex.bool(c, .more)
+        programs = JSONFlex.array(c, .programs) ?? JSONFlex.array(c, .djPrograms)
+    }
 }
 
-struct CloudDJProgram: Codable, Identifiable {
+struct CloudDJProgram: Decodable, Identifiable {
     let id: Int
     let name: String
     let coverUrl: String?
@@ -385,28 +466,47 @@ struct CloudDJProgram: Codable, Identifiable {
     let mainSong: CloudDJMainSong?
     let radio: CloudDJRadioBrief?
 
+    enum CodingKeys: String, CodingKey {
+        case id, name, coverUrl, blurCoverUrl, duration, listenerCount
+        case createTime, description, mainSong, radio, serialNum
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? JSONFlex.int(c, .serialNum) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+        coverUrl = JSONFlex.string(c, .coverUrl) ?? JSONFlex.string(c, .blurCoverUrl)
+        duration = JSONFlex.int(c, .duration)
+        listenerCount = JSONFlex.int(c, .listenerCount)
+        createTime = JSONFlex.int64(c, .createTime)
+        description = JSONFlex.string(c, .description)
+        mainSong = try? c.decodeIfPresent(CloudDJMainSong.self, forKey: .mainSong)
+        radio = try? c.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio)
+    }
+
     var artworkUrl: String? {
-        (coverUrl ?? mainSong?.album?.picUrl)?.replacingOccurrences(of: "http://", with: "https://")
+        (coverUrl ?? mainSong?.albumInfo?.picUrl)?.replacingOccurrences(of: "http://", with: "https://")
     }
 
     var durationText: String {
-        let seconds = (duration ?? mainSong?.duration ?? 0) / 1000
+        let seconds = (duration ?? mainSong?.durationMS ?? 0) / 1000
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
-    func toTrack() -> Track? {
-        guard let song = mainSong else { return nil }
+    func toTrack() -> Track {
+        let song = mainSong
+        let trackId = song?.id ?? id
         return Track(
-            id: song.id,
-            name: song.name ?? name,
-            ar: song.artistList?.map { Artist(id: $0.id, name: $0.name) },
-            al: song.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: $0.picUrl) },
-            dt: song.durationMS ?? duration
+            id: trackId == 0 ? id : trackId,
+            name: song?.name ?? name,
+            ar: song?.artistList?.map { Artist(id: $0.id, name: $0.name) },
+            al: song?.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: $0.picUrl) },
+            dt: song?.durationMS ?? duration
         )
     }
 }
 
-struct CloudDJMainSong: Codable {
+struct CloudDJMainSong: Decodable {
     let id: Int
     let name: String?
     let duration: Int?
@@ -415,6 +515,22 @@ struct CloudDJMainSong: Codable {
     let ar: [CloudTrackArtist]?
     let album: CloudTrackAlbum?
     let al: CloudTrackAlbum?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, duration, dt, artists, ar, album, al
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name)
+        duration = JSONFlex.int(c, .duration)
+        dt = JSONFlex.int(c, .dt)
+        artists = try? c.decodeIfPresent([CloudTrackArtist].self, forKey: .artists)
+        ar = try? c.decodeIfPresent([CloudTrackArtist].self, forKey: .ar)
+        album = try? c.decodeIfPresent(CloudTrackAlbum.self, forKey: .album)
+        al = try? c.decodeIfPresent(CloudTrackAlbum.self, forKey: .al)
+    }
 
     var artistList: [CloudTrackArtist]? { artists ?? ar }
     var albumInfo: CloudTrackAlbum? { album ?? al }
@@ -427,7 +543,7 @@ struct CloudDJRadioBrief: Codable {
 }
 
 // MARK: - 云端歌曲模型
-struct CloudTrack: Codable, Identifiable {
+struct CloudTrack: Decodable, Identifiable {
     let id: Int
     let name: String
     let ar: [CloudTrackArtist]?
@@ -477,31 +593,48 @@ struct CloudTrack: Codable, Identifiable {
     }
 }
 
-struct CloudTrackArtist: Codable {
+struct CloudTrackArtist: Decodable {
     let id: Int
     let name: String
+
+    enum CodingKeys: String, CodingKey { case id, name }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+    }
 }
 
-struct CloudTrackAlbum: Codable {
+struct CloudTrackAlbum: Decodable {
     let id: Int
     let name: String
     let picUrl: String?
+
+    enum CodingKeys: String, CodingKey { case id, name, picUrl }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+        picUrl = JSONFlex.string(c, .picUrl)
+    }
 }
 
 // MARK: - 云端歌单详情响应
-struct CloudPlaylistDetailResponse: Codable {
+struct CloudPlaylistDetailResponse: Decodable {
     let code: Int
     let playlist: CloudPlaylistDetailData?
 }
 
-struct CloudPlaylistDetailData: Codable {
+struct CloudPlaylistDetailData: Decodable {
     let id: Int
     let name: String
     let tracks: [CloudTrack]?
 }
 
 // MARK: - 云端专辑详情响应
-struct CloudAlbumDetailResponse: Codable {
+struct CloudAlbumDetailResponse: Decodable {
     let code: Int
     let album: CloudAlbumDetailData?
     let songs: [CloudTrack]?
@@ -525,10 +658,10 @@ struct CloudDiskResponse: Codable {
     // 支持 size/maxSize 可能是 String 或 Number
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        code = try container.decode(Int.self, forKey: .code)
-        data = try container.decodeIfPresent([CloudDiskSong].self, forKey: .data)
-        count = try container.decodeIfPresent(Int.self, forKey: .count)
-        hasMore = try container.decodeIfPresent(Bool.self, forKey: .hasMore)
+        code = JSONFlex.int(container, .code) ?? 0
+        data = JSONFlex.array(container, .data)
+        count = JSONFlex.int(container, .count)
+        hasMore = JSONFlex.bool(container, .hasMore)
         
         // size 可能是 String 或 Number
         if let s = try? container.decodeIfPresent(String.self, forKey: .size) {

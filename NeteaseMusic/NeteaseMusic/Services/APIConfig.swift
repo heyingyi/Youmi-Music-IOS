@@ -70,7 +70,7 @@ enum APIEndpoint {
         case .djSublist:
             return "/dj/sublist"
         case .djProgram(let rid):
-            return "/dj/program?rid=\(rid)&limit=50&offset=0"
+            return "/dj/program?rid=\(rid)&limit=100&offset=0"
         }
     }
     
