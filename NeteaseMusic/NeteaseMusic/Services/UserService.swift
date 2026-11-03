@@ -108,6 +108,15 @@ class UserService {
         return response.programs ?? []
     }
 
+    /// 获取收藏的单集
+    func getDJProgramSublist() async throws -> [CloudDJProgram] {
+        let response: DJProgramListResponse = try await network.get(endpoint: .djProgramSublist)
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, "获取收藏单集失败")
+        }
+        return response.programs ?? []
+    }
+
     /// 喜欢/取消喜欢歌曲
     /// - Parameters:
     ///   - id: 歌曲ID

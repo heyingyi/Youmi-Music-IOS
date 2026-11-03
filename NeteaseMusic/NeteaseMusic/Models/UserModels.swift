@@ -443,7 +443,7 @@ struct DJProgramListResponse: Decodable {
     let more: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case code, count, programs, more, djPrograms
+        case code, count, programs, more, djPrograms, data
     }
 
     init(from decoder: Decoder) throws {
@@ -451,7 +451,9 @@ struct DJProgramListResponse: Decodable {
         code = JSONFlex.int(c, .code) ?? 0
         count = JSONFlex.int(c, .count)
         more = JSONFlex.bool(c, .more)
-        programs = JSONFlex.array(c, .programs) ?? JSONFlex.array(c, .djPrograms)
+        programs = JSONFlex.array(c, .programs)
+            ?? JSONFlex.array(c, .djPrograms)
+            ?? JSONFlex.array(c, .data)
     }
 }
 
@@ -537,9 +539,17 @@ struct CloudDJMainSong: Decodable {
     var durationMS: Int? { duration ?? dt }
 }
 
-struct CloudDJRadioBrief: Codable {
+struct CloudDJRadioBrief: Decodable {
     let id: Int?
     let name: String?
+
+    enum CodingKeys: String, CodingKey { case id, name }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id)
+        name = JSONFlex.string(c, .name)
+    }
 }
 
 // MARK: - 云端歌曲模型

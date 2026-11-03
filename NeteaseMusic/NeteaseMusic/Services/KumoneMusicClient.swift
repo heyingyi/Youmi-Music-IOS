@@ -590,6 +590,15 @@ final class KumoneMusicClient {
             ], crypto: "weapi")
             return try pass(json)
 
+        case "dj/program/sub/list":
+            let json = try await request("/api/djprogram/sub/list", payload: [
+                "limit": intQuery(query, "limit", 100),
+                "offset": intQuery(query, "offset", 0),
+                "total": true,
+                "asc": false
+            ], crypto: "weapi")
+            return try pass(json)
+
         default:
             let payload = payloadFromQuery(query)
             let json = try await request("/api/\(route)", payload: payload, crypto: "weapi")

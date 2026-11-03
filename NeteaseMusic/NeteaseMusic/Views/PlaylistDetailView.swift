@@ -212,7 +212,7 @@ struct PlaylistDetailView: View {
             .frame(height: height)
             .offset(y: minY > 0 ? -minY : 0)  // 下拉时固定在顶部
             .onChangeCompat(of: minY) { _, value in
-                if value > 120, !isSearching {
+                if value > 72, !isSearching {
                     isSearching = true
                 }
             }

@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State private var cloudPlaylists: [CloudPlaylist] = []
     @State private var cloudAlbums: [CloudAlbum] = []
     @State private var cloudPodcasts: [CloudDJRadio] = []
+    @State private var collectedPrograms: [CloudDJProgram] = []
     @State private var likedSongIds: [Int] = []
     @State private var cloudDiskCount: Int?
     @State private var isLoadingCloud = false
@@ -75,6 +76,7 @@ struct LibraryView: View {
                 cloudPlaylists = []
                 cloudAlbums = []
                 cloudPodcasts = []
+                collectedPrograms = []
                 likedSongIds = []
                 cloudDiskCount = nil
             } else if authViewModel.currentUser == nil {
@@ -120,12 +122,14 @@ struct LibraryView: View {
             async let albums = userService.getAlbumSublist()
             async let likeIds = userService.getLikeList(uid: userId)
             async let radios = userService.getDJSublist()
+            async let programs = userService.getDJProgramSublist()
             async let disk = MusicService.shared.getCloudDisk(limit: 1, offset: 0)
 
             cloudPlaylists = try await playlists
             cloudAlbums = try await albums
             likedSongIds = try await likeIds
             cloudPodcasts = (try? await radios) ?? []
+            collectedPrograms = (try? await programs) ?? []
             if let disk = try? await disk {
                 cloudDiskCount = disk.count ?? disk.data?.count
             }
@@ -245,6 +249,18 @@ struct LibraryView: View {
                             iconColor: .orange,
                             title: "我的播客",
                             count: cloudPodcasts.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        CloudCollectedProgramsView(programs: collectedPrograms)
+                    } label: {
+                        CloudFeatureCard(
+                            icon: "bookmark.fill",
+                            iconColor: .teal,
+                            title: "收藏的单集",
+                            count: collectedPrograms.count
                         )
                     }
                     .buttonStyle(.plain)
@@ -700,20 +716,21 @@ struct CloudPlaylistDetailView: View {
                             isSearching = false
                             searchText = ""
                         }
+                    } else {
+                        PlaylistPageHeader(
+                            title: playlist.name,
+                            coverUrl: playlist.coverUrl,
+                            avatarUrl: authViewModel.currentUser?.avatarUrl,
+                            nickname: authViewModel.currentUser?.nickname ?? "",
+                            trackCount: tracks.count > 0 ? tracks.count : (playlist.trackCount ?? 0),
+                            playCount: playlist.playCount
+                        )
+                        PlaylistPlayAllBar(
+                            count: displayedTracks.count,
+                            onPlayAll: playAll,
+                            onDownloadAll: downloadAll
+                        )
                     }
-                    PlaylistPageHeader(
-                        title: playlist.name,
-                        coverUrl: playlist.coverUrl,
-                        avatarUrl: authViewModel.currentUser?.avatarUrl,
-                        nickname: authViewModel.currentUser?.nickname ?? "",
-                        trackCount: tracks.count > 0 ? tracks.count : (playlist.trackCount ?? 0),
-                        playCount: playlist.playCount
-                    )
-                    PlaylistPlayAllBar(
-                        count: displayedTracks.count,
-                        onPlayAll: playAll,
-                        onDownloadAll: downloadAll
-                    )
 
                     if isLoading {
                         ProgressView().padding(.top, 40)
@@ -733,12 +750,15 @@ struct CloudPlaylistDetailView: View {
                 }
                 .padding(.bottom, 100)
             }
+            .coordinateSpace(name: "playlistPull")
         }
         .immersiveNavigationChrome()
-        .navigationTitle(playlist.name)
+        .navigationTitle(isSearching ? "搜索歌单内歌曲" : playlist.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            PlaylistMoreToolbar(sortMode: $sortMode)
+            if !isSearching {
+                PlaylistMoreToolbar(sortMode: $sortMode)
+            }
         }
         .sheet(isPresented: $showDownloadSheet) {
             PlaylistDownloadSheet(tracks: displayedTracks.map { $0.toTrack() })
@@ -892,20 +912,21 @@ struct CloudLikedSongsView: View {
                             isSearching = false
                             searchText = ""
                         }
+                    } else {
+                        PlaylistPageHeader(
+                            title: playlist.name,
+                            coverUrl: playlist.coverUrl,
+                            avatarUrl: authViewModel.currentUser?.avatarUrl,
+                            nickname: authViewModel.currentUser?.nickname ?? "",
+                            trackCount: tracks.count > 0 ? tracks.count : songCount,
+                            playCount: playlist.playCount
+                        )
+                        PlaylistPlayAllBar(
+                            count: displayedTracks.count,
+                            onPlayAll: playAll,
+                            onDownloadAll: downloadAll
+                        )
                     }
-                    PlaylistPageHeader(
-                        title: playlist.name,
-                        coverUrl: playlist.coverUrl,
-                        avatarUrl: authViewModel.currentUser?.avatarUrl,
-                        nickname: authViewModel.currentUser?.nickname ?? "",
-                        trackCount: tracks.count > 0 ? tracks.count : songCount,
-                        playCount: playlist.playCount
-                    )
-                    PlaylistPlayAllBar(
-                        count: displayedTracks.count,
-                        onPlayAll: playAll,
-                        onDownloadAll: downloadAll
-                    )
 
                     if isLoading {
                         VStack(spacing: 8) {
@@ -933,12 +954,15 @@ struct CloudLikedSongsView: View {
                 }
                 .padding(.bottom, 100)
             }
+            .coordinateSpace(name: "playlistPull")
         }
         .immersiveNavigationChrome()
-        .navigationTitle("喜欢的音乐")
+        .navigationTitle(isSearching ? "搜索歌单内歌曲" : "喜欢的音乐")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            PlaylistMoreToolbar(sortMode: $sortMode)
+            if !isSearching {
+                PlaylistMoreToolbar(sortMode: $sortMode)
+            }
         }
         .sheet(isPresented: $showDownloadSheet) {
             PlaylistDownloadSheet(tracks: displayedTracks)
@@ -1474,28 +1498,31 @@ enum PlaylistTrackFilter {
 
 struct PlaylistPullSearchSensor: View {
     @Binding var isSearching: Bool
+    @State private var armed = false
     @State private var baseline: CGFloat?
 
     var body: some View {
         GeometryReader { geo in
+            let minY = geo.frame(in: .named("playlistPull")).minY
             Color.clear
                 .onAppear {
-                    if baseline == nil {
-                        baseline = geo.frame(in: .global).minY
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                        baseline = minY
+                        armed = true
                     }
                 }
-                .onChangeCompat(of: geo.frame(in: .global).minY) { _, minY in
+                .onChangeCompat(of: minY) { _, value in
+                    guard armed, !isSearching else { return }
                     if baseline == nil {
-                        baseline = minY
-                        return
+                        baseline = value
                     }
-                    guard !isSearching, let base = baseline else { return }
-                    if minY - base > 120 {
+                    if let base = baseline, value - base > 72 {
                         isSearching = true
                     }
                 }
         }
         .frame(height: 0)
+        .allowsHitTesting(false)
     }
 }
 
@@ -1672,6 +1699,76 @@ struct PlaylistMoreToolbar: ToolbarContent {
                     .foregroundColor(.red)
             }
         }
+    }
+}
+
+struct CloudCollectedProgramsView: View {
+    let programs: [CloudDJProgram]
+    @ObservedObject private var audioPlayer = AudioPlayer.shared
+
+    var body: some View {
+        ZStack {
+            ThemedBackground()
+                .environmentObject(ThemeManager.shared)
+            if programs.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "bookmark")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary)
+                    Text("还没有收藏的单集")
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(programs.enumerated()), id: \.offset) { index, program in
+                            Button {
+                                play(program, index: index)
+                            } label: {
+                                HStack(spacing: 14) {
+                                    if let cover = program.artworkUrl, let url = URL(string: cover) {
+                                        AsyncImage(url: url) { image in
+                                            image.resizable().aspectRatio(contentMode: .fill)
+                                        } placeholder: {
+                                            Rectangle().fill(Color.gray.opacity(0.2))
+                                        }
+                                        .frame(width: 56, height: 56)
+                                        .cornerRadius(8)
+                                    }
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(program.name)
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(.primary)
+                                            .lineLimit(2)
+                                        Text("\(program.radio?.name ?? "") · \(program.durationText)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(12)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            if index < programs.count - 1 {
+                                Divider().padding(.leading, 82)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 100)
+                }
+            }
+        }
+        .immersiveNavigationChrome()
+        .navigationTitle("收藏的单集")
+    }
+
+    private func play(_ program: CloudDJProgram, index: Int) {
+        let tracks = programs.map { $0.toTrack() }
+        guard !tracks.isEmpty else { return }
+        audioPlayer.setPlaylist(tracks, startAt: index)
     }
 }
 
