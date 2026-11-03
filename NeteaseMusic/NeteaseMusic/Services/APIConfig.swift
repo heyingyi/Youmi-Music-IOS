@@ -33,8 +33,11 @@ enum APIEndpoint {
     case albumSublist                // 获取收藏的专辑
     case playlistDetail(id: Int)     // 获取歌单详情
     case djSublist                   // 订阅的播客
+    case djCreated(uid: Int)         // 我创建的播客
     case djProgram(rid: Int)         // 播客节目列表
     case djProgramSublist            // 收藏的单集
+    case djProgramSub(id: Int, sub: Bool) // 收藏/取消收藏单集
+    case djProgramAdd(radioId: Int, programId: Int) // 加入自建播客
 
     var path: String {
         switch self {
@@ -70,10 +73,16 @@ enum APIEndpoint {
             return "/playlist/detail?id=\(id)"
         case .djSublist:
             return "/dj/sublist"
+        case .djCreated(let uid):
+            return "/user/dj?uid=\(uid)&limit=100&offset=0"
         case .djProgram(let rid):
             return "/dj/program?rid=\(rid)&limit=100&offset=0"
         case .djProgramSublist:
-            return "/dj/program/sub/list?limit=100&offset=0"
+            return "/dj/program/sublist?limit=100&offset=0"
+        case .djProgramSub(let id, let sub):
+            return "/dj/program/sub?id=\(id)&t=\(sub ? 1 : 0)"
+        case .djProgramAdd(let radioId, let programId):
+            return "/dj/program/add?radioId=\(radioId)&programId=\(programId)"
         }
     }
     

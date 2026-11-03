@@ -381,14 +381,23 @@ struct DJSublistResponse: Decodable {
     let djRadios: [CloudDJRadio]?
 
     enum CodingKeys: String, CodingKey {
-        case code, count, djRadios, data
+        case code, count, djRadios, data, records, radios
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         code = JSONFlex.int(c, .code) ?? 0
         count = JSONFlex.int(c, .count)
-        djRadios = JSONFlex.array(c, .djRadios) ?? JSONFlex.array(c, .data)
+        var parsed: [CloudDJRadio]? = JSONFlex.array(c, .djRadios)
+            ?? JSONFlex.array(c, .data)
+            ?? JSONFlex.array(c, .records)
+            ?? JSONFlex.array(c, .radios)
+        if parsed == nil, let nested = try? c.nestedContainer(keyedBy: CodingKeys.self, forKey: .data) {
+            parsed = JSONFlex.array(nested, .djRadios)
+                ?? JSONFlex.array(nested, .records)
+                ?? JSONFlex.array(nested, .radios)
+        }
+        djRadios = parsed
     }
 }
 
@@ -402,14 +411,14 @@ struct CloudDJRadio: Decodable, Identifiable {
     let desc: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, picUrl, dj, programCount, playCount, desc
+        case id, name, picUrl, coverUrl, dj, programCount, playCount, desc, radioId
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = JSONFlex.int(c, .id) ?? 0
+        id = JSONFlex.int(c, .id) ?? JSONFlex.int(c, .radioId) ?? 0
         name = JSONFlex.string(c, .name) ?? ""
-        picUrl = JSONFlex.string(c, .picUrl)
+        picUrl = JSONFlex.string(c, .picUrl) ?? JSONFlex.string(c, .coverUrl)
         dj = try? c.decodeIfPresent(CloudDJCreator.self, forKey: .dj)
         programCount = JSONFlex.int(c, .programCount)
         playCount = JSONFlex.int(c, .playCount)
@@ -443,7 +452,7 @@ struct DJProgramListResponse: Decodable {
     let more: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case code, count, programs, more, djPrograms, data
+        case code, count, programs, more, djPrograms, data, records, list
     }
 
     init(from decoder: Decoder) throws {
@@ -451,9 +460,18 @@ struct DJProgramListResponse: Decodable {
         code = JSONFlex.int(c, .code) ?? 0
         count = JSONFlex.int(c, .count)
         more = JSONFlex.bool(c, .more)
-        programs = JSONFlex.array(c, .programs)
+        var parsed: [CloudDJProgram]? = JSONFlex.array(c, .programs)
             ?? JSONFlex.array(c, .djPrograms)
             ?? JSONFlex.array(c, .data)
+            ?? JSONFlex.array(c, .records)
+            ?? JSONFlex.array(c, .list)
+        if parsed == nil, let nested = try? c.nestedContainer(keyedBy: CodingKeys.self, forKey: .data) {
+            parsed = JSONFlex.array(nested, .programs)
+                ?? JSONFlex.array(nested, .djPrograms)
+                ?? JSONFlex.array(nested, .records)
+                ?? JSONFlex.array(nested, .list)
+        }
+        programs = parsed
     }
 }
 
@@ -470,20 +488,31 @@ struct CloudDJProgram: Decodable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, coverUrl, blurCoverUrl, duration, listenerCount
-        case createTime, description, mainSong, radio, serialNum
+        case createTime, description, mainSong, song, radio, serialNum, program
     }
 
     init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = JSONFlex.int(c, .id) ?? JSONFlex.int(c, .serialNum) ?? 0
-        name = JSONFlex.string(c, .name) ?? ""
-        coverUrl = JSONFlex.string(c, .coverUrl) ?? JSONFlex.string(c, .blurCoverUrl)
-        duration = JSONFlex.int(c, .duration)
+        let root = try decoder.container(keyedBy: CodingKeys.self)
+        let c: KeyedDecodingContainer<CodingKeys>
+        if let nested = try? root.nestedContainer(keyedBy: CodingKeys.self, forKey: .program) {
+            c = nested
+        } else {
+            c = root
+        }
+        id = JSONFlex.int(c, .id) ?? JSONFlex.int(c, .serialNum) ?? JSONFlex.int(root, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? JSONFlex.string(root, .name) ?? ""
+        coverUrl = JSONFlex.string(c, .coverUrl)
+            ?? JSONFlex.string(c, .blurCoverUrl)
+            ?? JSONFlex.string(root, .coverUrl)
+        duration = JSONFlex.int(c, .duration) ?? JSONFlex.int(root, .duration)
         listenerCount = JSONFlex.int(c, .listenerCount)
         createTime = JSONFlex.int64(c, .createTime)
         description = JSONFlex.string(c, .description)
-        mainSong = try? c.decodeIfPresent(CloudDJMainSong.self, forKey: .mainSong)
-        radio = try? c.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio)
+        mainSong = (try? c.decodeIfPresent(CloudDJMainSong.self, forKey: .mainSong))
+            ?? (try? c.decodeIfPresent(CloudDJMainSong.self, forKey: .song))
+            ?? (try? root.decodeIfPresent(CloudDJMainSong.self, forKey: .mainSong))
+        radio = (try? c.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio))
+            ?? (try? root.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio))
     }
 
     var artworkUrl: String? {

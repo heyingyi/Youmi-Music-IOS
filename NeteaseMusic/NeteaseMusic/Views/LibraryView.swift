@@ -121,14 +121,14 @@ struct LibraryView: View {
             async let playlists = userService.getUserPlaylists(uid: userId)
             async let albums = userService.getAlbumSublist()
             async let likeIds = userService.getLikeList(uid: userId)
-            async let radios = userService.getDJSublist()
+            async let radios = userService.getAllDJRadios(uid: userId)
             async let programs = userService.getDJProgramSublist()
             async let disk = MusicService.shared.getCloudDisk(limit: 1, offset: 0)
 
             cloudPlaylists = try await playlists
             cloudAlbums = try await albums
             likedSongIds = try await likeIds
-            cloudPodcasts = (try? await radios) ?? []
+            cloudPodcasts = await radios
             collectedPrograms = (try? await programs) ?? []
             if let disk = try? await disk {
                 cloudDiskCount = disk.count ?? disk.data?.count
@@ -757,7 +757,9 @@ struct CloudPlaylistDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !isSearching {
-                PlaylistMoreToolbar(sortMode: $sortMode)
+                PlaylistMoreToolbar(sortMode: $sortMode, onFind: {
+                    isSearching = true
+                })
             }
         }
         .sheet(isPresented: $showDownloadSheet) {
@@ -961,7 +963,9 @@ struct CloudLikedSongsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !isSearching {
-                PlaylistMoreToolbar(sortMode: $sortMode)
+                PlaylistMoreToolbar(sortMode: $sortMode, onFind: {
+                    isSearching = true
+                })
             }
         }
         .sheet(isPresented: $showDownloadSheet) {
@@ -1456,12 +1460,16 @@ enum PlaylistSortMode: String, CaseIterable {
     case original
     case name
     case artist
+    case album
+    case duration
 
     var title: String {
         switch self {
         case .original: return "默认排序"
-        case .name: return "按歌曲名"
-        case .artist: return "按歌手"
+        case .name: return "歌曲名"
+        case .artist: return "歌手名"
+        case .album: return "专辑名"
+        case .duration: return "时长"
         }
     }
 }
@@ -1478,6 +1486,8 @@ enum PlaylistTrackFilter {
         case .original: return filtered
         case .name: return filtered.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         case .artist: return filtered.sorted { $0.artistName.localizedStandardCompare($1.artistName) == .orderedAscending }
+        case .album: return filtered.sorted { $0.albumName.localizedStandardCompare($1.albumName) == .orderedAscending }
+        case .duration: return filtered.sorted { $0.durationSeconds < $1.durationSeconds }
         }
     }
 
@@ -1492,6 +1502,8 @@ enum PlaylistTrackFilter {
         case .original: return filtered
         case .name: return filtered.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         case .artist: return filtered.sorted { $0.artistName.localizedStandardCompare($1.artistName) == .orderedAscending }
+        case .album: return filtered.sorted { $0.albumName.localizedStandardCompare($1.albumName) == .orderedAscending }
+        case .duration: return filtered.sorted { $0.durationSeconds < $1.durationSeconds }
         }
     }
 }
@@ -1678,20 +1690,30 @@ struct PlaylistDownloadSheet: View {
 
 struct PlaylistMoreToolbar: ToolbarContent {
     @Binding var sortMode: PlaylistSortMode
+    var onFind: () -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigationBarTrailing) {
             Menu {
-                ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
-                    Button {
-                        sortMode = mode
-                    } label: {
-                        if sortMode == mode {
-                            Label(mode.title, systemImage: "checkmark")
-                        } else {
-                            Text(mode.title)
+                Button {
+                    onFind()
+                } label: {
+                    Label("查找", systemImage: "magnifyingglass")
+                }
+                Menu {
+                    ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
+                        Button {
+                            sortMode = mode
+                        } label: {
+                            if sortMode == mode {
+                                Label(mode.title, systemImage: "checkmark")
+                            } else {
+                                Text(mode.title)
+                            }
                         }
                     }
+                } label: {
+                    Label("排序", systemImage: "arrow.up.arrow.down")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -1704,13 +1726,21 @@ struct PlaylistMoreToolbar: ToolbarContent {
 
 struct CloudCollectedProgramsView: View {
     let programs: [CloudDJProgram]
+    @State private var loaded: [CloudDJProgram] = []
+    @State private var isLoading = true
     @ObservedObject private var audioPlayer = AudioPlayer.shared
+
+    private var items: [CloudDJProgram] {
+        loaded.isEmpty ? programs : loaded
+    }
 
     var body: some View {
         ZStack {
             ThemedBackground()
                 .environmentObject(ThemeManager.shared)
-            if programs.isEmpty {
+            if isLoading && items.isEmpty {
+                ProgressView()
+            } else if items.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "bookmark")
                         .font(.system(size: 32))
@@ -1721,7 +1751,7 @@ struct CloudCollectedProgramsView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(programs.enumerated()), id: \.offset) { index, program in
+                        ForEach(Array(items.enumerated()), id: \.offset) { index, program in
                             Button {
                                 play(program, index: index)
                             } label: {
@@ -1751,7 +1781,7 @@ struct CloudCollectedProgramsView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            if index < programs.count - 1 {
+                            if index < items.count - 1 {
                                 Divider().padding(.leading, 82)
                             }
                         }
@@ -1763,10 +1793,16 @@ struct CloudCollectedProgramsView: View {
         }
         .immersiveNavigationChrome()
         .navigationTitle("收藏的单集")
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        loaded = (try? await UserService.shared.getDJProgramSublist()) ?? programs
+        isLoading = false
     }
 
     private func play(_ program: CloudDJProgram, index: Int) {
-        let tracks = programs.map { $0.toTrack() }
+        let tracks = items.map { $0.toTrack() }
         guard !tracks.isEmpty else { return }
         audioPlayer.setPlaylist(tracks, startAt: index)
     }
@@ -1774,23 +1810,29 @@ struct CloudCollectedProgramsView: View {
 
 struct CloudPodcastsView: View {
     let radios: [CloudDJRadio]
+    @EnvironmentObject var authViewModel: AuthViewModel
+    @State private var loaded: [CloudDJRadio] = []
+
+    private var items: [CloudDJRadio] {
+        loaded.isEmpty ? radios : loaded
+    }
 
     var body: some View {
         ZStack {
             ThemedBackground()
                 .environmentObject(ThemeManager.shared)
-            if radios.isEmpty {
+            if items.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "mic")
                         .font(.system(size: 32))
                         .foregroundColor(.secondary)
-                    Text("还没有订阅播客")
+                    Text("还没有播客")
                         .foregroundColor(.secondary)
                 }
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(radios) { radio in
+                        ForEach(items) { radio in
                             NavigationLink {
                                 CloudPodcastDetailView(radio: radio)
                             } label: {
@@ -1831,14 +1873,22 @@ struct CloudPodcastsView: View {
         }
         .immersiveNavigationChrome()
         .navigationTitle("我的播客")
+        .task {
+            if let uid = authViewModel.currentUser?.userId {
+                loaded = await UserService.shared.getAllDJRadios(uid: uid)
+            }
+        }
     }
 }
 
 struct CloudPodcastDetailView: View {
     let radio: CloudDJRadio
     @State private var programs: [CloudDJProgram] = []
+    @State private var createdRadios: [CloudDJRadio] = []
     @State private var isLoading = true
+    @State private var toastMessage: String?
     @ObservedObject private var audioPlayer = AudioPlayer.shared
+    @EnvironmentObject var authViewModel: AuthViewModel
 
     var body: some View {
         ZStack {
@@ -1868,38 +1918,44 @@ struct CloudPodcastDetailView: View {
                     } else {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(programs.enumerated()), id: \.offset) { index, program in
-                                Button {
-                                    play(program, index: index)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        Text("\(index + 1)")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.secondary)
-                                            .frame(width: 30)
-                                        if let cover = program.artworkUrl, let url = URL(string: cover) {
-                                            AsyncImage(url: url) { image in
-                                                image.resizable().aspectRatio(contentMode: .fill)
-                                            } placeholder: {
-                                                Rectangle().fill(Color.gray.opacity(0.2))
-                                            }
-                                            .frame(width: 44, height: 44)
-                                            .cornerRadius(6)
-                                        }
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(program.name)
-                                                .font(.system(size: 15, weight: .medium))
-                                                .foregroundColor(.primary)
-                                                .lineLimit(2)
-                                            Text(program.durationText)
-                                                .font(.caption)
+                                HStack(spacing: 12) {
+                                    Button {
+                                        play(program, index: index)
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Text("\(index + 1)")
+                                                .font(.system(size: 14))
                                                 .foregroundColor(.secondary)
+                                                .frame(width: 30)
+                                            if let cover = program.artworkUrl, let url = URL(string: cover) {
+                                                AsyncImage(url: url) { image in
+                                                    image.resizable().aspectRatio(contentMode: .fill)
+                                                } placeholder: {
+                                                    Rectangle().fill(Color.gray.opacity(0.2))
+                                                }
+                                                .frame(width: 44, height: 44)
+                                                .cornerRadius(6)
+                                            }
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(program.name)
+                                                    .font(.system(size: 15, weight: .medium))
+                                                    .foregroundColor(.primary)
+                                                    .lineLimit(2)
+                                                Text(program.durationText)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            Spacer()
                                         }
-                                        Spacer()
+                                        .contentShape(Rectangle())
                                     }
-                                    .padding(.vertical, 10)
-                                    .contentShape(Rectangle())
+                                    .buttonStyle(.plain)
+                                    programActionMenu(program)
                                 }
-                                .buttonStyle(.plain)
+                                .padding(.vertical, 10)
+                                .contextMenu {
+                                    programActionButtons(program)
+                                }
                                 if index < programs.count - 1 {
                                     Divider().padding(.leading, 86)
                                 }
@@ -1914,7 +1970,47 @@ struct CloudPodcastDetailView: View {
         .immersiveNavigationChrome()
         .navigationTitle(radio.name)
         .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .bottom) {
+            if let toastMessage {
+                ToastView(message: toastMessage)
+                    .padding(.bottom, 120)
+            }
+        }
         .task { await loadPrograms() }
+    }
+
+    @ViewBuilder
+    private func programActionMenu(_ program: CloudDJProgram) -> some View {
+        Menu {
+            programActionButtons(program)
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.secondary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func programActionButtons(_ program: CloudDJProgram) -> some View {
+        Button {
+            Task { await collectProgram(program) }
+        } label: {
+            Label("收藏到单集", systemImage: "bookmark")
+        }
+        if !createdRadios.isEmpty {
+            Menu {
+                ForEach(createdRadios) { mine in
+                    Button(mine.name) {
+                        Task { await addProgram(program, to: mine) }
+                    }
+                }
+            } label: {
+                Label("加入自建播客", systemImage: "plus.circle")
+            }
+        }
     }
 
     private func loadPrograms() async {
@@ -1925,7 +2021,37 @@ struct CloudPodcastDetailView: View {
             print("加载播客失败: \(error)")
             #endif
         }
+        if let uid = authViewModel.currentUser?.userId {
+            createdRadios = (try? await UserService.shared.getCreatedDJRadios(uid: uid)) ?? []
+        }
         isLoading = false
+    }
+
+    private func collectProgram(_ program: CloudDJProgram) async {
+        do {
+            try await UserService.shared.subscribeDJProgram(id: program.id, sub: true)
+            showToast("已收藏到单集")
+        } catch {
+            showToast("收藏失败")
+        }
+    }
+
+    private func addProgram(_ program: CloudDJProgram, to radio: CloudDJRadio) async {
+        do {
+            try await UserService.shared.addDJProgram(program.id, toRadio: radio.id)
+            showToast("已加入 \(radio.name)")
+        } catch {
+            showToast("加入失败")
+        }
+    }
+
+    private func showToast(_ message: String) {
+        toastMessage = message
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            if toastMessage == message {
+                toastMessage = nil
+            }
+        }
     }
 
     private func play(_ program: CloudDJProgram, index: Int) {

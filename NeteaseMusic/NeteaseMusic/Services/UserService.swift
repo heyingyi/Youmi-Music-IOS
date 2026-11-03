@@ -96,7 +96,30 @@ class UserService {
         guard response.code == 200 else {
             throw NetworkError.serverError(response.code, "获取播客失败")
         }
-        return response.djRadios ?? []
+        return (response.djRadios ?? []).filter { $0.id != 0 }
+    }
+
+    /// 获取自己创建的播客
+    func getCreatedDJRadios(uid: Int) async throws -> [CloudDJRadio] {
+        let response: DJSublistResponse = try await network.get(endpoint: .djCreated(uid: uid))
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, "获取自建播客失败")
+        }
+        return (response.djRadios ?? []).filter { $0.id != 0 }
+    }
+
+    /// 合并订阅与自建播客，自建在前
+    func getAllDJRadios(uid: Int) async -> [CloudDJRadio] {
+        async let created = getCreatedDJRadios(uid: uid)
+        async let subed = getDJSublist()
+        let mine = (try? await created) ?? []
+        let others = (try? await subed) ?? []
+        var seen = Set<Int>()
+        var result: [CloudDJRadio] = []
+        for radio in mine + others where seen.insert(radio.id).inserted {
+            result.append(radio)
+        }
+        return result
     }
 
     /// 获取播客节目
@@ -105,7 +128,7 @@ class UserService {
         guard response.code == 200 else {
             throw NetworkError.serverError(response.code, "获取节目失败")
         }
-        return response.programs ?? []
+        return (response.programs ?? []).filter { $0.id != 0 }
     }
 
     /// 获取收藏的单集
@@ -114,7 +137,23 @@ class UserService {
         guard response.code == 200 else {
             throw NetworkError.serverError(response.code, "获取收藏单集失败")
         }
-        return response.programs ?? []
+        return (response.programs ?? []).filter { $0.id != 0 }
+    }
+
+    /// 收藏/取消收藏单集
+    func subscribeDJProgram(id: Int, sub: Bool) async throws {
+        let response: LikeResponse = try await network.get(endpoint: .djProgramSub(id: id, sub: sub))
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, sub ? "收藏单集失败" : "取消收藏失败")
+        }
+    }
+
+    /// 将节目加入自建播客
+    func addDJProgram(_ programId: Int, toRadio radioId: Int) async throws {
+        let response: LikeResponse = try await network.get(endpoint: .djProgramAdd(radioId: radioId, programId: programId))
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, "加入播客失败")
+        }
     }
 
     /// 喜欢/取消喜欢歌曲

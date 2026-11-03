@@ -124,16 +124,25 @@ struct PlaylistDetailView: View {
                 } else {
                     Spacer()
                     Menu {
-                        ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
-                            Button {
-                                sortMode = mode
-                            } label: {
-                                if sortMode == mode {
-                                    Label(mode.title, systemImage: "checkmark")
-                                } else {
-                                    Text(mode.title)
+                        Button {
+                            isSearching = true
+                        } label: {
+                            Label("查找", systemImage: "magnifyingglass")
+                        }
+                        Menu {
+                            ForEach(PlaylistSortMode.allCases, id: \.self) { mode in
+                                Button {
+                                    sortMode = mode
+                                } label: {
+                                    if sortMode == mode {
+                                        Label(mode.title, systemImage: "checkmark")
+                                    } else {
+                                        Text(mode.title)
+                                    }
                                 }
                             }
+                        } label: {
+                            Label("排序", systemImage: "arrow.up.arrow.down")
                         }
                     } label: {
                         Image(systemName: "ellipsis")
