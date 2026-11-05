@@ -52,7 +52,7 @@ enum BufferingState: Equatable {
 }
 
 // MARK: - 播放器错误
-enum AudioPlayerError: Error, LocalizedError {
+enum AudioPlayerError: Error, LocalizedError, Equatable {
     case invalidURL
     case networkError(String)
     case playbackFailed(String)

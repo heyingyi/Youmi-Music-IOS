@@ -57,7 +57,19 @@ struct MainTabView: View {
             }
         }
         .onChangeCompat(of: audioPlayer.thirdPartySourceName) { _, newValue in
-            presentSourceToast(newValue)
+            if let newValue, !newValue.isEmpty {
+                presentTopToast("已使用第三方音源：\(newValue)")
+            }
+        }
+        .onChangeCompat(of: audioPlayer.lastError) { _, error in
+            if let error {
+                presentTopToast(error.localizedDescription)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .appToast)) { note in
+            if let message = note.object as? String, !message.isEmpty {
+                presentTopToast(message)
+            }
         }
         .overlay(alignment: .top) {
             if let message = sourceToast {
@@ -70,19 +82,16 @@ struct MainTabView: View {
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .allowsHitTesting(false)
+                    .zIndex(999)
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: sourceToast)
     }
 
-    private func presentSourceToast(_ name: String?) {
+    private func presentTopToast(_ message: String) {
         sourceToastToken += 1
         let token = sourceToastToken
-        guard let name, !name.isEmpty else {
-            sourceToast = nil
-            return
-        }
-        sourceToast = "已使用第三方音源：\(name)"
+        sourceToast = message
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
             guard token == sourceToastToken else { return }
             sourceToast = nil

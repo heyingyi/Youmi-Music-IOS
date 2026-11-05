@@ -3195,6 +3195,13 @@ struct ToastView: View {
 extension Notification.Name {
     static let showLoginSheet = Notification.Name("showLoginSheet")
     static let likedSongsChanged = Notification.Name("likedSongsChanged")
+    static let appToast = Notification.Name("appToast")
+}
+
+enum AppToast {
+    static func show(_ message: String) {
+        NotificationCenter.default.post(name: .appToast, object: message)
+    }
 }
 
 #Preview {

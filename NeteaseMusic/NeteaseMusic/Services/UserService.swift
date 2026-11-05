@@ -143,16 +143,16 @@ class UserService {
     /// 收藏/取消收藏单集
     func subscribeDJProgram(id: Int, sub: Bool) async throws {
         let response: LikeResponse = try await network.get(endpoint: .djProgramSub(id: id, sub: sub))
-        guard response.code == 200 else {
-            throw NetworkError.serverError(response.code, sub ? "收藏单集失败" : "取消收藏失败")
+        guard response.isOK else {
+            throw NetworkError.serverError(response.code, response.message ?? (sub ? "收藏单集失败" : "取消收藏失败"))
         }
     }
 
     /// 将节目加入自建播客
     func addDJProgram(_ programId: Int, toRadio radioId: Int) async throws {
         let response: LikeResponse = try await network.get(endpoint: .djProgramAdd(radioId: radioId, programId: programId))
-        guard response.code == 200 else {
-            throw NetworkError.serverError(response.code, "加入播客失败")
+        guard response.isOK else {
+            throw NetworkError.serverError(response.code, response.message ?? "加入播客失败")
         }
     }
 

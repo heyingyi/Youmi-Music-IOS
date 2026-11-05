@@ -339,9 +339,23 @@ struct LikelistResponse: Codable {
 }
 
 // MARK: - 喜欢歌曲响应
-struct LikeResponse: Codable {
+struct LikeResponse: Decodable {
     let code: Int
     let playlistId: Int?
+    let message: String?
+
+    enum CodingKeys: String, CodingKey { case code, playlistId, message, msg }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        playlistId = JSONFlex.int(c, .playlistId)
+        message = JSONFlex.string(c, .message) ?? JSONFlex.string(c, .msg)
+    }
+
+    var isOK: Bool {
+        code == 200 || code == 201 || code == 301
+    }
 }
 
 // MARK: - 收藏的专辑
@@ -409,9 +423,10 @@ struct CloudDJRadio: Decodable, Identifiable {
     let programCount: Int?
     let playCount: Int?
     let desc: String?
+    let djUserId: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, picUrl, coverUrl, dj, programCount, playCount, desc, radioId
+        case id, name, picUrl, coverUrl, dj, programCount, playCount, desc, radioId, userId, createUserId
     }
 
     init(from decoder: Decoder) throws {
@@ -423,6 +438,9 @@ struct CloudDJRadio: Decodable, Identifiable {
         programCount = JSONFlex.int(c, .programCount)
         playCount = JSONFlex.int(c, .playCount)
         desc = JSONFlex.string(c, .desc)
+        djUserId = JSONFlex.int(c, .userId)
+            ?? JSONFlex.int(c, .createUserId)
+            ?? dj?.userId
     }
 
     var coverUrl: String? {
@@ -436,12 +454,14 @@ struct CloudDJRadio: Decodable, Identifiable {
 
 struct CloudDJCreator: Decodable {
     let nickname: String?
+    let userId: Int?
 
-    enum CodingKeys: String, CodingKey { case nickname }
+    enum CodingKeys: String, CodingKey { case nickname, userId, id }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         nickname = JSONFlex.string(c, .nickname)
+        userId = JSONFlex.int(c, .userId) ?? JSONFlex.int(c, .id)
     }
 }
 
@@ -487,23 +507,29 @@ struct CloudDJProgram: Decodable, Identifiable {
     let radio: CloudDJRadioBrief?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, coverUrl, blurCoverUrl, duration, listenerCount
-        case createTime, description, mainSong, song, radio, serialNum, program
+        case id, name, coverUrl, blurCoverUrl, picUrl, coverImgUrl, img80x80
+        case duration, listenerCount, createTime, description
+        case mainSong, song, radio, serialNum, program, programId, resource
     }
 
     init(from decoder: Decoder) throws {
         let root = try decoder.container(keyedBy: CodingKeys.self)
-        let c: KeyedDecodingContainer<CodingKeys>
-        if let nested = try? root.nestedContainer(keyedBy: CodingKeys.self, forKey: .program) {
-            c = nested
-        } else {
-            c = root
-        }
-        id = JSONFlex.int(c, .id) ?? JSONFlex.int(c, .serialNum) ?? JSONFlex.int(root, .id) ?? 0
+        let nested = (try? root.nestedContainer(keyedBy: CodingKeys.self, forKey: .program))
+            ?? (try? root.nestedContainer(keyedBy: CodingKeys.self, forKey: .resource))
+        let c = nested ?? root
+        id = JSONFlex.int(c, .id)
+            ?? JSONFlex.int(c, .programId)
+            ?? JSONFlex.int(root, .id)
+            ?? JSONFlex.int(root, .programId)
+            ?? 0
         name = JSONFlex.string(c, .name) ?? JSONFlex.string(root, .name) ?? ""
         coverUrl = JSONFlex.string(c, .coverUrl)
             ?? JSONFlex.string(c, .blurCoverUrl)
+            ?? JSONFlex.string(c, .picUrl)
+            ?? JSONFlex.string(c, .coverImgUrl)
+            ?? JSONFlex.string(c, .img80x80)
             ?? JSONFlex.string(root, .coverUrl)
+            ?? JSONFlex.string(root, .picUrl)
         duration = JSONFlex.int(c, .duration) ?? JSONFlex.int(root, .duration)
         listenerCount = JSONFlex.int(c, .listenerCount)
         createTime = JSONFlex.int64(c, .createTime)
@@ -516,23 +542,42 @@ struct CloudDJProgram: Decodable, Identifiable {
     }
 
     var artworkUrl: String? {
-        (coverUrl ?? mainSong?.albumInfo?.picUrl)?.replacingOccurrences(of: "http://", with: "https://")
+        let raw = coverUrl
+            ?? mainSong?.albumInfo?.picUrl
+            ?? radio?.picUrl
+        guard let raw, !raw.isEmpty else { return nil }
+        return raw.replacingOccurrences(of: "http://", with: "https://")
+    }
+
+    var durationMS: Int {
+        duration ?? mainSong?.durationMS ?? 0
     }
 
     var durationText: String {
-        let seconds = (duration ?? mainSong?.durationMS ?? 0) / 1000
+        let seconds = durationMS / 1000
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
-    func toTrack() -> Track {
+    func toTrack(fallbackCover: String? = nil) -> Track {
         let song = mainSong
         let trackId = song?.id ?? id
+        let cover = artworkUrl ?? fallbackCover?.replacingOccurrences(of: "http://", with: "https://")
+        let artists = song?.artistList?.map { Artist(id: $0.id, name: $0.name) }
+            ?? (radio?.name.map { [Artist(id: radio?.id ?? 0, name: $0)] })
+        let album = song?.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: $0.picUrl ?? cover) }
+            ?? Album(id: radio?.id ?? 0, name: radio?.name ?? name, picUrl: cover)
         return Track(
             id: trackId == 0 ? id : trackId,
             name: song?.name ?? name,
-            ar: song?.artistList?.map { Artist(id: $0.id, name: $0.name) },
-            al: song?.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: $0.picUrl) },
-            dt: song?.durationMS ?? duration
+            ar: artists,
+            al: album,
+            artists: nil,
+            album: nil,
+            dt: song?.durationMS ?? duration,
+            duration: nil,
+            mv: nil,
+            mvid: nil,
+            fee: nil
         )
     }
 }
@@ -571,13 +616,15 @@ struct CloudDJMainSong: Decodable {
 struct CloudDJRadioBrief: Decodable {
     let id: Int?
     let name: String?
+    let picUrl: String?
 
-    enum CodingKeys: String, CodingKey { case id, name }
+    enum CodingKeys: String, CodingKey { case id, name, picUrl, coverUrl }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = JSONFlex.int(c, .id)
         name = JSONFlex.string(c, .name)
+        picUrl = JSONFlex.string(c, .picUrl) ?? JSONFlex.string(c, .coverUrl)
     }
 }
 

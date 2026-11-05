@@ -617,16 +617,19 @@ final class KumoneMusicClient {
                 "offset": intQuery(query, "offset", 0),
                 "total": true
             ]
-            let paths = [
-                "/api/djprogram/subscribed/list",
-                "/api/program/subscribed/dj",
-                "/api/program/sub/list",
-                "/api/djprogram/sub/list"
+            let attempts: [(String, String)] = [
+                ("/api/program/sub/list", "weapi"),
+                ("/api/program/sub/list", "eapi"),
+                ("/api/djprogram/sub/list", "weapi"),
+                ("/api/v1/dj/program/subed", "weapi"),
+                ("/api/djradio/program/subscribed", "weapi"),
+                ("/api/program/subscribed", "weapi")
             ]
-            var json: [String: Any] = [:]
+            var json: [String: Any] = ["code": 200]
             var programs: [[String: Any]] = []
-            for path in paths {
-                json = try await request(path, payload: payload, crypto: "weapi")
+            for (path, crypto) in attempts {
+                guard let result = try? await request(path, payload: payload, crypto: crypto) else { continue }
+                json = result
                 programs = extractPrograms(json)
                 if !programs.isEmpty { break }
             }
@@ -637,16 +640,34 @@ final class KumoneMusicClient {
         case "dj/program/sub":
             let id = intQuery(query, "id")
             let sub = intQuery(query, "t", 1) == 1
-            let json = try await request(sub ? "/api/djprogram/sub" : "/api/djprogram/unsub", payload: [
-                "id": id
-            ], crypto: "weapi")
+            let action = sub ? "sub" : "unsub"
+            let attempts: [(String, [String: Any])] = [
+                ("/api/djprogram/\(action)", ["id": id]),
+                ("/api/program/\(action)", ["id": id]),
+                ("/api/djprogram/sub", ["id": id, "t": sub ? 1 : 0]),
+                ("/api/program/sub", ["id": id, "t": sub ? 1 : 0])
+            ]
+            var json: [String: Any] = ["code": 400]
+            for (path, payload) in attempts {
+                guard let result = try? await request(path, payload: payload, crypto: "weapi") else { continue }
+                json = result
+                if isSuccessCode(json["code"]) { break }
+            }
             return try pass(json)
 
         case "dj/program/add":
-            let json = try await request("/api/dj/program/add", payload: [
-                "id": intQuery(query, "radioId"),
-                "programId": intQuery(query, "programId")
+            let radioId = intQuery(query, "radioId")
+            let programId = intQuery(query, "programId")
+            var json = try await request("/api/djradio/program/add", payload: [
+                "radioId": radioId,
+                "programId": programId
             ], crypto: "weapi")
+            if !isSuccessCode(json["code"]) {
+                json = try await request("/api/dj/program/add", payload: [
+                    "id": radioId,
+                    "programId": programId
+                ], crypto: "weapi")
+            }
             return try pass(json)
 
         default:
@@ -1002,17 +1023,46 @@ final class KumoneMusicClient {
     }
 
     private func unwrapProgramItem(_ item: [String: Any]) -> [String: Any] {
-        guard let program = item["program"] as? [String: Any] else { return item }
-        var merged = program
-        if merged["radio"] == nil { merged["radio"] = item["radio"] }
-        if merged["coverUrl"] == nil { merged["coverUrl"] = item["coverUrl"] }
+        var merged = item
+        if let resource = item["resource"] as? [String: Any] {
+            if let nested = resource["program"] as? [String: Any] {
+                merged = nested
+            } else {
+                merged = resource
+            }
+            if merged["radio"] == nil { merged["radio"] = resource["radio"] ?? item["radio"] }
+        }
+        if let program = (merged["program"] as? [String: Any]) ?? (item["program"] as? [String: Any]) {
+            var inner = program
+            if inner["radio"] == nil { inner["radio"] = merged["radio"] ?? item["radio"] }
+            merged = inner
+        }
+        if intValue(merged["id"]) == 0 {
+            let fallback = [merged["programId"], item["programId"], item["id"], merged["serialNum"]]
+                .map { intValue($0) }
+                .first { $0 != 0 } ?? 0
+            if fallback != 0 { merged["id"] = fallback }
+        }
+        if merged["coverUrl"] == nil {
+            merged["coverUrl"] = item["coverUrl"]
+                ?? item["picUrl"]
+                ?? merged["picUrl"]
+                ?? merged["blurCoverUrl"]
+                ?? (merged["radio"] as? [String: Any])?["picUrl"]
+                ?? (item["radio"] as? [String: Any])?["picUrl"]
+        }
         return merged
     }
 
     private func extractPrograms(_ json: [String: Any]) -> [[String: Any]] {
         extractList(json, keys: ["programs", "djPrograms", "data", "records", "list"])
             .map(unwrapProgramItem)
-            .filter { intValue($0["id"]) != 0 }
+            .filter { intValue($0["id"]) != 0 || intValue($0["programId"]) != 0 }
+    }
+
+    private func isSuccessCode(_ value: Any?) -> Bool {
+        let code = intValue(value)
+        return code == 200 || code == 201 || code == 301
     }
 
     private func extractRadios(_ json: [String: Any]) -> [[String: Any]] {
