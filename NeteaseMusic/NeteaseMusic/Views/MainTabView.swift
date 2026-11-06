@@ -75,10 +75,17 @@ struct MainTabView: View {
             if let message = sourceToast {
                 Text(message)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Capsule().fill(Color.black.opacity(0.78)))
+                    .background(
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.28), lineWidth: 0.8)
+                            )
+                    )
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .allowsHitTesting(false)

@@ -50,6 +50,40 @@ enum MusicQuality: String, CaseIterable, Identifiable {
     }
 }
 
+struct CustomAudioSourceItem: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var name: String
+    var template: String
+    var jsonPath: String
+    var enabled: Bool = true
+
+    var displayName: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        return Self.inferredName(from: template)
+    }
+
+    var isJavaScript: Bool {
+        let lower = template.lowercased()
+        return lower.contains(".js") || lower.contains("/blob/") || lower.contains("gist.github")
+    }
+
+    static func inferredName(from template: String) -> String {
+        let value = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.lowercased().contains(".js") || value.contains("/blob/") {
+            if let url = URL(string: value) {
+                let last = url.lastPathComponent.replacingOccurrences(of: ".js", with: "")
+                if !last.isEmpty { return last }
+            }
+            return "自定义 JS"
+        }
+        if let host = URL(string: value)?.host, !host.isEmpty {
+            return host
+        }
+        return "自定义"
+    }
+}
+
 /// 音源配置管理器
 class MusicSourceConfig: ObservableObject {
     static let shared = MusicSourceConfig()
@@ -64,6 +98,7 @@ class MusicSourceConfig: ObservableObject {
         static let enableCustomSource = "music_enable_custom_source"
         static let customSourceTemplate = "music_custom_source_template"
         static let customSourceJSONPath = "music_custom_source_json_path"
+        static let customSources = "music_custom_sources"
     }
     
     // 兼容旧播放地址字段；实际取流由 KumoneMusicClient 直连网易云
@@ -111,19 +146,24 @@ class MusicSourceConfig: ObservableObject {
         }
     }
 
-    var customSourceDisplayName: String {
-        let template = customSourceTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
-        if template.lowercased().contains(".js") || template.contains("/blob/") {
-            if let url = URL(string: template) {
-                let last = url.lastPathComponent.replacingOccurrences(of: ".js", with: "")
-                if !last.isEmpty { return last }
+    @Published var customSources: [CustomAudioSourceItem] {
+        didSet {
+            persistCustomSources()
+            if customSources.contains(where: { $0.enabled && !$0.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                enableCustomSource = true
             }
-            return "自定义 JS"
         }
-        if let host = URL(string: template)?.host, !host.isEmpty {
-            return host
+    }
+
+    var enabledCustomSources: [CustomAudioSourceItem] {
+        customSources.filter { $0.enabled && !$0.template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var customSourceDisplayName: String {
+        if let first = enabledCustomSources.first {
+            return first.displayName
         }
-        return "自定义"
+        return CustomAudioSourceItem.inferredName(from: customSourceTemplate)
     }
 
     /// 从 JSON 里取播放地址的路径，例如 url 或 data.url
@@ -159,6 +199,69 @@ class MusicSourceConfig: ObservableObject {
         self.enableCustomSource = userDefaults.object(forKey: Keys.enableCustomSource) as? Bool ?? false
         self.customSourceTemplate = userDefaults.string(forKey: Keys.customSourceTemplate) ?? ""
         self.customSourceJSONPath = userDefaults.string(forKey: Keys.customSourceJSONPath) ?? "url"
+        if let data = userDefaults.data(forKey: Keys.customSources),
+           let decoded = try? JSONDecoder().decode([CustomAudioSourceItem].self, from: data) {
+            self.customSources = decoded
+        } else {
+            self.customSources = []
+        }
+        if customSources.isEmpty {
+            let legacy = customSourceTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !legacy.isEmpty {
+                customSources = [
+                    CustomAudioSourceItem(
+                        name: CustomAudioSourceItem.inferredName(from: legacy),
+                        template: legacy,
+                        jsonPath: customSourceJSONPath,
+                        enabled: true
+                    )
+                ]
+            }
+        }
+    }
+
+    func importCustomSource(from template: String, jsonPath: String? = nil) {
+        let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if customSources.contains(where: { $0.template == trimmed }) { return }
+        let item = CustomAudioSourceItem(
+            name: CustomAudioSourceItem.inferredName(from: trimmed),
+            template: trimmed,
+            jsonPath: (jsonPath ?? customSourceJSONPath).trimmingCharacters(in: .whitespacesAndNewlines),
+            enabled: true
+        )
+        if item.isJavaScript {
+            customSources.append(item)
+        } else if let index = customSources.firstIndex(where: { $0.isJavaScript }) {
+            customSources.insert(item, at: index)
+        } else {
+            customSources.append(item)
+        }
+        customSourceTemplate = trimmed
+        enableCustomSource = true
+    }
+
+    func removeCustomSource(_ item: CustomAudioSourceItem) {
+        customSources.removeAll { $0.id == item.id }
+    }
+
+    func moveCustomSources(from source: IndexSet, to destination: Int) {
+        customSources.move(fromOffsets: source, toOffset: destination)
+    }
+
+    func sortOnlineSourcesFirst() {
+        customSources.sort { lhs, rhs in
+            if lhs.isJavaScript != rhs.isJavaScript {
+                return !lhs.isJavaScript
+            }
+            return false
+        }
+    }
+
+    private func persistCustomSources() {
+        if let data = try? JSONEncoder().encode(customSources) {
+            userDefaults.set(data, forKey: Keys.customSources)
+        }
     }
     
     /// 重置为默认值

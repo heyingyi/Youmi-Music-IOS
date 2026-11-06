@@ -20,6 +20,10 @@ struct SettingsView: View {
     @State private var clearCacheSuccess = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var showBackgroundPicker = false
+    @State private var showSplashPicker = false
+    @State private var pickerTarget: SettingsPhotoTarget = .background
+    @State private var importSourceText = ""
+    @ObservedObject private var chrome = ChromeLayoutConfig.shared
 
     var body: some View {
         ZStack {
@@ -35,6 +39,8 @@ struct SettingsView: View {
                 
                 // 播放设置
                 liquidGlassPlaybackSection
+
+                liquidGlassChromeSection
                 
                 // 外观设置
                 liquidGlassAppearanceSection
@@ -48,11 +54,12 @@ struct SettingsView: View {
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.large)
         .photosPicker(isPresented: $showBackgroundPicker, selection: $selectedPhotoItem, matching: .images)
+        .photosPicker(isPresented: $showSplashPicker, selection: $selectedPhotoItem, matching: .images)
         .onChangeCompat(of: selectedPhotoItem) { _, newItem in
             guard let newItem else { return }
-            Task { await loadPickedBackground(from: newItem) }
+            Task { await loadPickedImage(from: newItem, target: pickerTarget) }
         }
-        .alert(selectedCacheType == .downloaded ? "删除所有下载" : "清除缓存", isPresented: $showClearCacheAlert) {
+        .alert(cacheAlertTitle, isPresented: $showClearCacheAlert) {
             Button("取消", role: .cancel) { }
             Button("确定", role: .destructive) {
                 Task {
@@ -63,11 +70,7 @@ struct SettingsView: View {
                 }
             }
         } message: {
-            if selectedCacheType == .downloaded {
-                Text("确定要删除所有已下载的歌曲吗？此操作不可撤销。")
-            } else {
-                Text("将清除图片、音频流、动态封面等缓存，不会删除已下载的歌曲。")
-            }
+            Text(cacheAlertMessage)
         }
             
             // 次元裂缝过渡效果
@@ -156,15 +159,23 @@ struct SettingsView: View {
                 if sourceConfig.enableCustomSource {
                     themedDivider
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("接口模板")
+                        Text("导入接口或 JS")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
-                        TextField("https://.../{id} 或 GitHub JS 插件地址", text: $sourceConfig.customSourceTemplate)
-                            .font(.system(size: 14, design: .monospaced))
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .padding(10)
-                            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        HStack(spacing: 8) {
+                            TextField("https://.../{id} 或 GitHub JS", text: $importSourceText)
+                                .font(.system(size: 14, design: .monospaced))
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(10)
+                                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                            Button("导入") {
+                                sourceConfig.importCustomSource(from: importSourceText)
+                                importSourceText = ""
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .disabled(importSourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
 
                         Text("JSON 路径")
                             .font(.system(size: 13, weight: .medium))
@@ -176,12 +187,54 @@ struct SettingsView: View {
                             .padding(10)
                             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
 
-                        Text("HTTP 占位符：{id} {songId} {quality} {br} {source}。也可填 lx 音源 JS，例如 GitHub blob/raw 链接。")
+                        Text("在线 HTTP 优先，失败自动下一个。HTTP 占位符：{id} {songId} {quality} {br} {source}。")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
+
+                    if !sourceConfig.customSources.isEmpty {
+                        themedDivider
+                        ForEach(Array(sourceConfig.customSources.enumerated()), id: \.element.id) { index, item in
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.displayName)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(themeTextColor)
+                                    Text(item.isJavaScript ? "JS 插件" : "在线接口")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { item.enabled },
+                                    set: { sourceConfig.customSources[index].enabled = $0 }
+                                ))
+                                .labelsHidden()
+                                Button {
+                                    sourceConfig.removeCustomSource(item)
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                        }
+                        Button {
+                            sourceConfig.sortOnlineSourcesFirst()
+                        } label: {
+                            Text("在线音源排前")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
@@ -346,6 +399,47 @@ struct SettingsView: View {
         }
     }
 
+    private var liquidGlassChromeSection: some View {
+        themedSection(title: "导航与播放条") {
+            VStack(spacing: 0) {
+                chromeSliderRow(title: "底部栏宽度", value: $chrome.tabBarWidth, range: 0.72...1.0, format: .percent)
+                themedDivider
+                chromeSliderRow(title: "底部栏高度", value: $chrome.tabBarHeight, range: 48...80, format: .points)
+                themedDivider
+                chromeSliderRow(title: "底部栏圆角", value: $chrome.tabBarCorner, range: 12...40, format: .points)
+                themedDivider
+                chromeSliderRow(title: "播放条宽度", value: $chrome.miniBarWidth, range: 0.72...1.0, format: .percent)
+                themedDivider
+                chromeSliderRow(title: "播放条高度", value: $chrome.miniBarHeight, range: 56...88, format: .points)
+                themedDivider
+                chromeSliderRow(title: "播放条圆角", value: $chrome.miniBarCorner, range: 12...44, format: .points)
+            }
+        }
+    }
+
+    private enum ChromeSliderFormat {
+        case percent
+        case points
+    }
+
+    private func chromeSliderRow(title: String, value: Binding<Double>, range: ClosedRange<Double>, format: ChromeSliderFormat) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(themeTextColor)
+                Spacer()
+                Text(format == .percent ? "\(Int(value.wrappedValue * 100))%" : "\(Int(value.wrappedValue))")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            Slider(value: value, in: range)
+                .tint(themeManager.isStrangerTheme ? Color(red: 1.0, green: 0.2, blue: 0.3) : .purple)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
     // MARK: - 液态玻璃外观设置
     private var liquidGlassAppearanceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -446,6 +540,12 @@ struct SettingsView: View {
 
                 customBackgroundControls
                     .padding(.bottom, 8)
+
+                themedDivider
+                    .padding(.horizontal, 16)
+
+                customSplashControls
+                    .padding(.bottom, 8)
             }
             .background {
                 if themeManager.themeStyle == .strangerThings {
@@ -519,6 +619,7 @@ struct SettingsView: View {
 
             HStack(spacing: 12) {
                 Button {
+                    pickerTarget = .background
                     showBackgroundPicker = true
                 } label: {
                     HStack(spacing: 8) {
@@ -597,6 +698,87 @@ struct SettingsView: View {
         }
     }
 
+    private var customSplashControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.orange)
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "sparkles.rectangle.stack.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("自定义启动图")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(themeTextColor)
+                    Text("替换默认开屏背景")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+
+            HStack(spacing: 12) {
+                Button {
+                    pickerTarget = .splash
+                    showSplashPicker = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(themeManager.customSplashImage == nil ? "选择启动图" : "更换启动图")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(themeManager.isStrangerTheme ? .white : .primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(themeManager.isStrangerTheme ? Color.white.opacity(0.12) : Color(.tertiarySystemFill))
+                    )
+                }
+                .buttonStyle(.borderless)
+
+                if themeManager.customSplashImage != nil {
+                    Button {
+                        withAnimation(.spring(response: 0.3)) {
+                            themeManager.clearCustomSplash()
+                        }
+                    } label: {
+                        Text("清除")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.red.opacity(0.12))
+                            )
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if let preview = themeManager.customSplashImage {
+                Color.clear
+                    .frame(height: 92)
+                    .overlay {
+                        Image(uiImage: preview)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.horizontal, 16)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
     private func appearanceSliderRow(
         title: String,
         value: Binding<Double>,
@@ -630,13 +812,41 @@ struct SettingsView: View {
         .padding(.vertical, 8)
     }
 
-    private func loadPickedBackground(from item: PhotosPickerItem) async {
+    private func loadPickedImage(from item: PhotosPickerItem, target: SettingsPhotoTarget) async {
         let image = await PickedBackgroundImage.load(from: item)
         await MainActor.run {
             if let image {
-                themeManager.setCustomBackground(image)
+                switch target {
+                case .background:
+                    themeManager.setCustomBackground(image)
+                case .splash:
+                    themeManager.setCustomSplash(image)
+                }
             }
             selectedPhotoItem = nil
+        }
+    }
+
+    private var cacheAlertTitle: String {
+        switch selectedCacheType {
+        case .downloaded: return "删除所有下载"
+        case .all: return "清除缓存"
+        default: return "清除\(selectedCacheType.rawValue)"
+        }
+    }
+
+    private var cacheAlertMessage: String {
+        switch selectedCacheType {
+        case .downloaded:
+            return "确定要删除所有已下载的歌曲吗？此操作不可撤销。"
+        case .image:
+            return "将清除专辑封面、艺人头像等图片缓存。"
+        case .audio:
+            return "将清除音频流和网络缓存。"
+        case .dynamicCover:
+            return "将清除动态封面缓存。"
+        case .all:
+            return "将清除图片、音频流、动态封面等缓存，不会删除已下载的歌曲。"
         }
     }
     
@@ -677,24 +887,36 @@ struct SettingsView: View {
                     themedDivider
                     
                     ForEach(cacheManager.storageDetails) { detail in
-                        HStack {
-                            Image(systemName: detail.icon)
-                                .font(.system(size: 14))
-                                .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.6) : .secondary)
-                                .frame(width: 24)
-                            
-                            Text(detail.name)
-                                .font(.system(size: 14))
-                                .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.8) : .primary)
-                            
-                            Spacer()
-                            
-                            Text(CacheManager.formatSize(detail.size))
-                                .font(.system(size: 14))
-                                .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.6) : .secondary)
+                        Button {
+                            HapticFeedback.medium()
+                            selectedCacheType = detail.type
+                            showClearCacheAlert = true
+                        } label: {
+                            HStack {
+                                Image(systemName: detail.icon)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.6) : .secondary)
+                                    .frame(width: 24)
+                                
+                                Text(detail.name)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.8) : .primary)
+                                
+                                Spacer()
+                                
+                                Text(CacheManager.formatSize(detail.size))
+                                    .font(.system(size: 14))
+                                    .foregroundColor(themeManager.themeStyle == .strangerThings ? .white.opacity(0.6) : .secondary)
+                                Image(systemName: "trash")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                        .buttonStyle(.plain)
+                        .disabled(cacheManager.isClearing)
                     }
                 }
                 
@@ -1148,6 +1370,11 @@ private struct AppearanceCardGlassModifier: ViewModifier {
             content
         }
     }
+}
+
+private enum SettingsPhotoTarget {
+    case background
+    case splash
 }
 
 private struct PickedBackgroundImage: Transferable {

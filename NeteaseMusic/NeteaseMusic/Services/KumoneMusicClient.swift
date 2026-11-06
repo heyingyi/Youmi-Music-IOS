@@ -619,6 +619,8 @@ final class KumoneMusicClient {
             ]
             let attempts: [(String, String)] = [
                 ("/api/program/sub/list", "weapi"),
+                ("/api/djprogram/subscribed", "weapi"),
+                ("/api/dj/program/sub/list", "weapi"),
                 ("/api/program/sub/list", "eapi"),
                 ("/api/djprogram/sub/list", "weapi"),
                 ("/api/v1/dj/program/subed", "weapi"),
@@ -645,7 +647,9 @@ final class KumoneMusicClient {
                 ("/api/djprogram/\(action)", ["id": id]),
                 ("/api/program/\(action)", ["id": id]),
                 ("/api/djprogram/sub", ["id": id, "t": sub ? 1 : 0]),
-                ("/api/program/sub", ["id": id, "t": sub ? 1 : 0])
+                ("/api/program/sub", ["id": id, "t": sub ? 1 : 0]),
+                ("/api/dj/program/\(action)", ["id": id]),
+                ("/api/resource/like", ["threadId": "A_DJ_1_\(id)", "t": sub ? 1 : 0])
             ]
             var json: [String: Any] = ["code": 400]
             for (path, payload) in attempts {
@@ -658,15 +662,17 @@ final class KumoneMusicClient {
         case "dj/program/add":
             let radioId = intQuery(query, "radioId")
             let programId = intQuery(query, "programId")
-            var json = try await request("/api/djradio/program/add", payload: [
-                "radioId": radioId,
-                "programId": programId
-            ], crypto: "weapi")
-            if !isSuccessCode(json["code"]) {
-                json = try await request("/api/dj/program/add", payload: [
-                    "id": radioId,
-                    "programId": programId
-                ], crypto: "weapi")
+            let attempts: [(String, [String: Any])] = [
+                ("/api/dj/program/add", ["djId": radioId, "programId": programId]),
+                ("/api/djradio/program/add", ["djId": radioId, "programId": programId]),
+                ("/api/djradio/program/add", ["radioId": radioId, "programId": programId]),
+                ("/api/dj/program/add", ["id": radioId, "programId": programId])
+            ]
+            var json: [String: Any] = ["code": 400]
+            for (path, payload) in attempts {
+                guard let result = try? await request(path, payload: payload, crypto: "weapi") else { continue }
+                json = result
+                if isSuccessCode(json["code"]) { break }
             }
             return try pass(json)
 
@@ -1006,20 +1012,42 @@ final class KumoneMusicClient {
         return payload
     }
 
-    private func extractList(_ json: [String: Any], keys: [String]) -> [[String: Any]] {
-        for key in keys {
-            if let items = json[key] as? [[String: Any]] {
-                return items
-            }
-            if let nested = json[key] as? [String: Any] {
-                for inner in keys {
-                    if let items = nested[inner] as? [[String: Any]] {
-                        return items
-                    }
+    private func dictList(_ value: Any?) -> [[String: Any]] {
+        if let items = value as? [[String: Any]] { return items }
+        if let items = value as? [Any] {
+            return items.compactMap { item -> [String: Any]? in
+                if let dict = item as? [String: Any] { return dict }
+                if let dict = item as? NSDictionary {
+                    return dict as? [String: Any] ?? Dictionary(uniqueKeysWithValues: dict.compactMap { key, value in
+                        (key as? String).map { ($0, value) }
+                    })
                 }
+                return nil
             }
         }
+        if let array = value as? NSArray {
+            return dictList(array as? [Any] ?? array.map { $0 as Any })
+        }
+        if let nested = value as? [String: Any] {
+            for key in ["programs", "djPrograms", "djRadios", "records", "list", "data"] {
+                let inner = dictList(nested[key])
+                if !inner.isEmpty { return inner }
+            }
+        }
+        if let nested = value as? NSDictionary {
+            return dictList(nested as? [String: Any] ?? Dictionary(uniqueKeysWithValues: nested.compactMap { key, value in
+                (key as? String).map { ($0, value) }
+            }))
+        }
         return []
+    }
+
+    private func extractList(_ json: [String: Any], keys: [String]) -> [[String: Any]] {
+        for key in keys {
+            let items = dictList(json[key])
+            if !items.isEmpty { return items }
+        }
+        return dictList(json)
     }
 
     private func unwrapProgramItem(_ item: [String: Any]) -> [String: Any] {

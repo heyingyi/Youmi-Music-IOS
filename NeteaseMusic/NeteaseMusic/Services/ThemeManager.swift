@@ -220,6 +220,7 @@ class ThemeManager: ObservableObject {
             backgroundFrost = min(max(savedFrost, 0), 1.0)
         }
         customBackgroundImage = Self.loadBackgroundImage()
+        customSplashImage = Self.loadSplashImage()
         
         updateCurrentTheme()
     }
@@ -254,10 +255,22 @@ class ThemeManager: ObservableObject {
     var cardBackgroundColor: Color { currentTheme.cardBackground }
     var placeholderBackground: Color { isStrangerTheme ? Color(red: 0.1, green: 0.05, blue: 0.15) : Color(.systemGray5) }
 
+    @Published var customSplashImage: UIImage? = nil
+
     func setCustomBackground(_ image: UIImage) {
         customBackgroundImage = image
         customBackgroundEnabled = true
         Self.saveBackgroundImage(image)
+    }
+
+    func setCustomSplash(_ image: UIImage) {
+        customSplashImage = image
+        Self.saveSplashImage(image)
+    }
+
+    func clearCustomSplash() {
+        customSplashImage = nil
+        try? FileManager.default.removeItem(at: Self.splashFileURL)
     }
 
     func clearCustomBackground() {
@@ -280,6 +293,55 @@ class ThemeManager: ObservableObject {
     private static func loadBackgroundImage() -> UIImage? {
         guard let data = try? Data(contentsOf: backgroundFileURL) else { return nil }
         return UIImage.downsample(data: data, maxPixelSize: 1170) ?? UIImage(data: data)?.preparedForBackground()
+    }
+
+    private static var splashFileURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("custom_app_splash.jpg")
+    }
+
+    private static func saveSplashImage(_ image: UIImage) {
+        let resized = image.preparedForBackground(maxDimension: 1600)
+        guard let data = resized.jpegData(compressionQuality: 0.82) else { return }
+        try? data.write(to: splashFileURL, options: .atomic)
+    }
+
+    private static func loadSplashImage() -> UIImage? {
+        guard let data = try? Data(contentsOf: splashFileURL) else { return nil }
+        return UIImage.downsample(data: data, maxPixelSize: 1600) ?? UIImage(data: data)
+    }
+}
+
+final class ChromeLayoutConfig: ObservableObject {
+    static let shared = ChromeLayoutConfig()
+
+    @Published var tabBarWidth: Double {
+        didSet { UserDefaults.standard.set(tabBarWidth, forKey: "chrome_tab_width") }
+    }
+    @Published var tabBarHeight: Double {
+        didSet { UserDefaults.standard.set(tabBarHeight, forKey: "chrome_tab_height") }
+    }
+    @Published var tabBarCorner: Double {
+        didSet { UserDefaults.standard.set(tabBarCorner, forKey: "chrome_tab_corner") }
+    }
+    @Published var miniBarWidth: Double {
+        didSet { UserDefaults.standard.set(miniBarWidth, forKey: "chrome_mini_width") }
+    }
+    @Published var miniBarHeight: Double {
+        didSet { UserDefaults.standard.set(miniBarHeight, forKey: "chrome_mini_height") }
+    }
+    @Published var miniBarCorner: Double {
+        didSet { UserDefaults.standard.set(miniBarCorner, forKey: "chrome_mini_corner") }
+    }
+
+    private init() {
+        let defaults = UserDefaults.standard
+        tabBarWidth = defaults.object(forKey: "chrome_tab_width") as? Double ?? 1.0
+        tabBarHeight = defaults.object(forKey: "chrome_tab_height") as? Double ?? 64
+        tabBarCorner = defaults.object(forKey: "chrome_tab_corner") as? Double ?? 32
+        miniBarWidth = defaults.object(forKey: "chrome_mini_width") as? Double ?? 1.0
+        miniBarHeight = defaults.object(forKey: "chrome_mini_height") as? Double ?? 72
+        miniBarCorner = defaults.object(forKey: "chrome_mini_corner") as? Double ?? 36
     }
 }
 

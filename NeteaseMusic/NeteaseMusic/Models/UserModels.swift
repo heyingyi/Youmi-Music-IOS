@@ -541,12 +541,15 @@ struct CloudDJProgram: Decodable, Identifiable {
             ?? (try? root.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio))
     }
 
-    var artworkUrl: String? {
-        let raw = coverUrl
-            ?? mainSong?.albumInfo?.picUrl
-            ?? radio?.picUrl
-        guard let raw, !raw.isEmpty else { return nil }
+    private func httpsCover(_ raw: String?) -> String? {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return raw.replacingOccurrences(of: "http://", with: "https://")
+    }
+
+    var artworkUrl: String? {
+        httpsCover(coverUrl)
+            ?? httpsCover(mainSong?.albumInfo?.picUrl)
+            ?? httpsCover(radio?.picUrl)
     }
 
     var durationMS: Int {
@@ -561,10 +564,11 @@ struct CloudDJProgram: Decodable, Identifiable {
     func toTrack(fallbackCover: String? = nil) -> Track {
         let song = mainSong
         let trackId = song?.id ?? id
-        let cover = artworkUrl ?? fallbackCover?.replacingOccurrences(of: "http://", with: "https://")
+        let cover = artworkUrl ?? httpsCover(fallbackCover)
         let artists = song?.artistList?.map { Artist(id: $0.id, name: $0.name) }
             ?? (radio?.name.map { [Artist(id: radio?.id ?? 0, name: $0)] })
-        let album = song?.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: $0.picUrl ?? cover) }
+        let albumPic = httpsCover(song?.albumInfo?.picUrl) ?? cover
+        let album = song?.albumInfo.map { Album(id: $0.id, name: $0.name, picUrl: albumPic) }
             ?? Album(id: radio?.id ?? 0, name: radio?.name ?? name, picUrl: cover)
         return Track(
             id: trackId == 0 ? id : trackId,

@@ -38,10 +38,6 @@ struct LibraryView: View {
                         cloudMusicSection
                     }
 
-                    if authViewModel.isLoggedIn {
-                        podcastHomeSection
-                    }
-
                     liquidGlassLibraryContent
                 }
                 .padding(.bottom, 120)
@@ -262,6 +258,21 @@ struct LibraryView: View {
                     .buttonStyle(.plain)
 
                     NavigationLink {
+                        CloudPodcastHubView(
+                            created: createdPodcasts,
+                            followed: followedPodcasts
+                        )
+                    } label: {
+                        CloudFeatureCard(
+                            icon: "mic.fill",
+                            iconColor: .orange,
+                            title: "播客",
+                            count: createdPodcasts.count + followedPodcasts.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
                         CloudDiskView()
                     } label: {
                         CloudFeatureCard(
@@ -282,39 +293,6 @@ struct LibraryView: View {
     private var followedPodcasts: [CloudDJRadio] {
         let createdIds = Set(createdPodcasts.map(\.id))
         return cloudPodcasts.filter { !createdIds.contains($0.id) }
-    }
-
-    private var podcastHomeSection: some View {
-        LiquidGlassSection(title: "播客") {
-            HStack(spacing: 12) {
-                NavigationLink {
-                    CloudPodcastsView(radios: createdPodcasts, title: "我创建的播客")
-                } label: {
-                    CloudFeatureCard(
-                        icon: "mic.fill",
-                        iconColor: .orange,
-                        title: "我创建的播客",
-                        count: createdPodcasts.count
-                    )
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink {
-                    CloudPodcastsView(radios: followedPodcasts, title: "我关注的播客")
-                } label: {
-                    CloudFeatureCard(
-                        icon: "antenna.radiowaves.left.and.right",
-                        iconColor: .teal,
-                        title: "我关注的播客",
-                        count: followedPodcasts.count
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 8)
-        }
     }
 
     // MARK: - 液态玻璃收藏库内容
@@ -1570,13 +1548,10 @@ struct PodcastCoverImage: View {
     var body: some View {
         Group {
             if let url, let parsed = URL(string: url) {
-                AsyncImage(url: parsed) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    default:
-                        placeholder
-                    }
+                CachedAsyncImage(url: parsed, targetSize: CGSize(width: size * 2, height: size * 2)) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    placeholder
                 }
             } else {
                 placeholder
@@ -1889,6 +1864,51 @@ struct CloudCollectedProgramsView: View {
     }
 }
 
+struct CloudPodcastHubView: View {
+    let created: [CloudDJRadio]
+    let followed: [CloudDJRadio]
+
+    var body: some View {
+        ZStack {
+            ThemedBackground()
+                .environmentObject(ThemeManager.shared)
+            ScrollView {
+                VStack(spacing: 16) {
+                    NavigationLink {
+                        CloudPodcastsView(radios: created, title: "我创建的播客")
+                    } label: {
+                        CloudFeatureCard(
+                            icon: "mic.fill",
+                            iconColor: .orange,
+                            title: "我创建的播客",
+                            count: created.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        CloudPodcastsView(radios: followed, title: "我关注的播客")
+                    } label: {
+                        CloudFeatureCard(
+                            icon: "antenna.radiowaves.left.and.right",
+                            iconColor: .teal,
+                            title: "我关注的播客",
+                            count: followed.count
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 100)
+            }
+        }
+        .immersiveNavigationChrome()
+        .navigationTitle("播客")
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
 struct CloudPodcastsView: View {
     let radios: [CloudDJRadio]
     var title: String = "我的播客"
@@ -2115,7 +2135,7 @@ struct CloudPodcastDetailView: View {
             try await UserService.shared.subscribeDJProgram(id: program.id, sub: true)
             AppToast.show("已收藏到单集")
         } catch {
-            AppToast.show("收藏失败")
+            AppToast.show(error.localizedDescription)
         }
     }
 
@@ -2124,7 +2144,7 @@ struct CloudPodcastDetailView: View {
             try await UserService.shared.addDJProgram(program.id, toRadio: radio.id)
             AppToast.show("已加入 \(radio.name)")
         } catch {
-            AppToast.show("加入失败")
+            AppToast.show(error.localizedDescription)
         }
     }
 

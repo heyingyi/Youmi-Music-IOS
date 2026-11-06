@@ -23,10 +23,49 @@ enum CustomAudioSourceService {
 
     static func resolve(id: Int, quality: String, trackName: String = "", artistName: String = "") async -> CustomAudioResolveResult? {
         let config = MusicSourceConfig.shared
-        guard config.enableCustomSource else { return nil }
-        let template = config.customSourceTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !template.isEmpty, id > 0 else { return nil }
+        guard config.enableCustomSource, id > 0 else { return nil }
+        var items = config.enabledCustomSources
+        if items.isEmpty {
+            let template = config.customSourceTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !template.isEmpty else { return nil }
+            items = [
+                CustomAudioSourceItem(
+                    name: CustomAudioSourceItem.inferredName(from: template),
+                    template: template,
+                    jsonPath: config.customSourceJSONPath,
+                    enabled: true
+                )
+            ]
+        }
+        items.sort { lhs, rhs in
+            if lhs.isJavaScript != rhs.isJavaScript {
+                return !lhs.isJavaScript
+            }
+            return false
+        }
+        for item in items {
+            if let result = await resolveOne(
+                item,
+                id: id,
+                quality: quality,
+                trackName: trackName,
+                artistName: artistName
+            ) {
+                return result
+            }
+        }
+        return nil
+    }
 
+    private static func resolveOne(
+        _ item: CustomAudioSourceItem,
+        id: Int,
+        quality: String,
+        trackName: String,
+        artistName: String
+    ) async -> CustomAudioResolveResult? {
+        let template = item.template.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !template.isEmpty else { return nil }
         if isJavaScriptSource(template) {
             return await resolveJavaScript(
                 source: template,
@@ -36,15 +75,15 @@ enum CustomAudioSourceService {
                 artistName: artistName
             )
         }
-        if let url = await resolveHTTPTemplate(template: template, id: id, quality: quality) {
-            return CustomAudioResolveResult(url: url, sourceName: displayName(from: template, fallback: "自定义"))
+        if let url = await resolveHTTPTemplate(template: template, jsonPath: item.jsonPath, id: id, quality: quality) {
+            return CustomAudioResolveResult(url: url, sourceName: item.displayName)
         }
         return nil
     }
 
     // MARK: - HTTP template
 
-    private static func resolveHTTPTemplate(template: String, id: Int, quality: String) async -> String? {
+    private static func resolveHTTPTemplate(template: String, jsonPath: String = "url", id: Int, quality: String) async -> String? {
         let br: String
         switch quality {
         case "standard": br = "128"
@@ -66,10 +105,10 @@ enum CustomAudioSourceService {
             urlString = urlString.replacingOccurrences(of: key, with: value)
         }
         guard let url = URL(string: urlString) else { return nil }
-        return await fetchPlayURL(from: url)
+        return await fetchPlayURL(from: url, jsonPath: jsonPath)
     }
 
-    private static func fetchPlayURL(from url: URL) async -> String? {
+    private static func fetchPlayURL(from url: URL, jsonPath: String = "url") async -> String? {
         var request = URLRequest(url: url)
         request.timeoutInterval = 8
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -87,7 +126,7 @@ enum CustomAudioSourceService {
         }
 
         if let object = try? JSONSerialization.jsonObject(with: data) {
-            let path = MusicSourceConfig.shared.customSourceJSONPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let path = jsonPath.trimmingCharacters(in: .whitespacesAndNewlines)
             let candidates = [path, "url", "data.url", "data.0.url", "data.music"].filter { !$0.isEmpty }
             for candidate in candidates {
                 if let value = value(at: candidate, in: object) as? String, looksLikePlayURL(value) {

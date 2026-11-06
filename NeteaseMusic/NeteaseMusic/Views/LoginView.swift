@@ -487,6 +487,7 @@ struct LegacyCustomTabBar: View {
     @Binding var isSearchMode: Bool
     var animation: Namespace.ID
     @EnvironmentObject var themeManager: ThemeManager
+    @ObservedObject private var chrome = ChromeLayoutConfig.shared
     @State private var showPlayer = false
     @State private var showMoodRecommend = false
 
@@ -541,10 +542,11 @@ struct LegacyCustomTabBar: View {
                 }
             }
             .frame(maxWidth: isIPad ? 400 : .infinity)
+            .frame(height: chrome.tabBarHeight)
             .padding(.leading, isIPad ? 0 : 16)
             .padding(.vertical, isIPad ? 10 : 8)
             .background(
-                ThemedTabBarBackground(cornerRadius: 32)
+                ThemedTabBarBackground(cornerRadius: chrome.tabBarCorner)
             )
 
             // 深夜电台按钮 - 移除永久动画，改用静态渐变
@@ -606,7 +608,7 @@ struct LegacyCustomTabBar: View {
             .padding(.leading, isIPad ? 12 : 8)
         }
         .frame(maxWidth: isIPad ? 650 : .infinity)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 16 + (1.0 - chrome.tabBarWidth) * 36)
         .padding(.bottom, isIPad ? 8 : 4)
     }
 
@@ -824,6 +826,7 @@ struct MiniPlayerBar: View {
     @Binding var showPlayer: Bool
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var chrome = ChromeLayoutConfig.shared
     
     // 只订阅需要的属性，避免不必要的重绘
     @State private var currentTrack: Track?
@@ -911,12 +914,12 @@ struct MiniPlayerBar: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .frame(height: 72)
+        .frame(height: chrome.miniBarHeight)
         .background(Color.black.opacity(0.001))
         .background(miniPlayerBackground)
-        .clipShape(Capsule())
-        .contentShape(Capsule())
-        .padding(.horizontal, 12)
+        .clipShape(RoundedRectangle(cornerRadius: chrome.miniBarCorner, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: chrome.miniBarCorner, style: .continuous))
+        .padding(.horizontal, 12 + (1.0 - chrome.miniBarWidth) * 40)
         .padding(.bottom, 8)
         .onReceive(AudioPlayer.shared.$currentTrack.removeDuplicates(by: { lhs, rhs in
             lhs?.id == rhs?.id && lhs?.coverUrl == rhs?.coverUrl
@@ -971,8 +974,9 @@ struct MiniPlayerBar: View {
     
     @ViewBuilder
     private var miniPlayerBackground: some View {
+        let shape = RoundedRectangle(cornerRadius: chrome.miniBarCorner, style: .continuous)
         if #available(iOS 26.0, *) {
-            Capsule()
+            shape
                 .fill(.clear)
                 .glassEffect(.regular)
                 .allowsHitTesting(false)

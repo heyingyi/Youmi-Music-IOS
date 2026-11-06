@@ -75,12 +75,20 @@ struct AppRootView: View {
 
 // MARK: - 启动页
 struct SplashView: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var opacity: Double = 0
+
+    private var splashImage: Image {
+        if let custom = themeManager.customSplashImage {
+            return Image(uiImage: custom)
+        }
+        return Image("SplashBackground")
+    }
 
     var body: some View {
         ZStack {
             GeometryReader { geo in
-                Image("SplashBackground")
+                splashImage
                     .resizable()
                     .scaledToFill()
                     .frame(width: geo.size.width, height: geo.size.height)
