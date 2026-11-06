@@ -103,6 +103,7 @@ jobs:
             -O2 \
             -framework Foundation \
             -framework UIKit \
+            -framework CoreGraphics \
             -install_name @executable_path/AppleIconExtractor.dylib \
             -o AppleIconExtractor.dylib \
             ios-plugin/AppleIconExtractor.m

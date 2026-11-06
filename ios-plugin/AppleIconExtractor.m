@@ -287,10 +287,10 @@ static const NSInteger AIEWindowTag = 0x41494532;
     NSString *seed = [NSString stringWithFormat:@"%.1f-%.1f-%ld-%p", size.width, size.height, (long)image.scale, image.CGImage];
     NSData *png = UIImagePNGRepresentation(image);
     NSData *payload = png.length > 0 ? png : [seed dataUsingEncoding:NSUTF8StringEncoding];
-    unsigned char md[CC_MD5_DIGEST_LENGTH];
-    CC_MD5(payload.bytes, (CC_LONG)payload.length, md);
-    NSMutableString *out = [NSMutableString stringWithCapacity:CC_MD5_DIGEST_LENGTH * 2];
-    for (int i = 0; i < CC_MD5_DIGEST_LENGTH; i++) {
+    unsigned char md[CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(payload.bytes, (CC_LONG)payload.length, md);
+    NSMutableString *out = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
+    for (int i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) {
         [out appendFormat:@"%02x", md[i]];
     }
     return out;
