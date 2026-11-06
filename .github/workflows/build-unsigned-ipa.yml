@@ -64,3 +64,58 @@ jobs:
         with:
           name: Youmi-Music-unsigned-2.2-ipa
           path: NeteaseMusic/Youmi-Music-unsigned-2.2.ipa
+
+  build-dylib:
+    runs-on: xcode-27
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26 toolchain
+        run: |
+          chosen=""
+          for app in $(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -Vr); do
+            if [ -d "$app/Contents/Developer" ]; then
+              chosen="$app"
+              break
+            fi
+          done
+          if [ -z "$chosen" ]; then
+            for app in $(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -Vr); do
+              if [ -d "$app/Contents/Developer" ]; then
+                chosen="$app"
+                break
+              fi
+            done
+          fi
+          echo "Using $chosen"
+          sudo xcode-select -s "$chosen"
+          xcodebuild -version
+
+      - name: Build unsigned iOS dylib
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun -sdk iphoneos clang -arch arm64 \
+            -isysroot "$SDK" \
+            -miphoneos-version-min=13.0 \
+            -fobjc-arc \
+            -dynamiclib \
+            -O2 \
+            -framework Foundation \
+            -framework UIKit \
+            -install_name @executable_path/AppleIconExtractor.dylib \
+            -o AppleIconExtractor.dylib \
+            ios-plugin/AppleIconExtractor.m
+          codesign -f -s - AppleIconExtractor.dylib || true
+          cp AppleIconExtractor.dylib AppleIconExtractor_1.2.2.dylib
+          ls -lh AppleIconExtractor.dylib AppleIconExtractor_1.2.2.dylib
+          file AppleIconExtractor.dylib
+          otool -hv AppleIconExtractor.dylib | head
+
+      - name: Upload dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AppleIconExtractor-1.2.2
+          path: |
+            AppleIconExtractor.dylib
+            AppleIconExtractor_1.2.2.dylib
