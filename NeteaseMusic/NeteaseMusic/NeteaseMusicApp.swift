@@ -107,28 +107,20 @@ struct SplashView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 20) {
-                // Logo
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.red, Color.red.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 100, height: 100)
-                        .shadow(color: Color.red.opacity(0.4), radius: 20)
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 108, height: 108)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.35), radius: 18, y: 8)
 
-                    Image(systemName: "music.note")
-                        .font(.system(size: 44, weight: .medium))
-                        .foregroundColor(.white)
-                }
-
-                // 应用名称
                 VStack(spacing: 8) {
-                    Text("Youmi Music")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    Text("小龙随心事迁")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
 
                     Text("发现美妙音乐")

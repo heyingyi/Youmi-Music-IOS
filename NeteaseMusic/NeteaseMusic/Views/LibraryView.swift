@@ -4,8 +4,8 @@ import SwiftUI
 struct LibraryView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var themeManager: ThemeManager
-    @StateObject private var localStorage = LocalStorageService.shared
-    @StateObject private var localMusicService = LocalMusicService.shared
+    @ObservedObject private var localStorage = LocalStorageService.shared
+    @ObservedObject private var localMusicService = LocalMusicService.shared
     @State private var showLogin = false
     @State private var cloudPlaylists: [CloudPlaylist] = []
     @State private var cloudAlbums: [CloudAlbum] = []
@@ -15,6 +15,7 @@ struct LibraryView: View {
     @State private var likedSongIds: [Int] = []
     @State private var cloudDiskCount: Int?
     @State private var isLoadingCloud = false
+    @State private var hasAttemptedCloudLoad = false
     
     private let userService = UserService.shared
     
@@ -47,7 +48,7 @@ struct LibraryView: View {
         .navigationTitle("我的")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                NavigationLink(destination: SettingsView()) {
+                NavigationLink(destination: SettingsView().environmentObject(themeManager)) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 17, weight: .medium))
                         .foregroundColor(.primary)
@@ -108,6 +109,7 @@ struct LibraryView: View {
     // MARK: - 加载云端数据
     private func loadCloudData() async {
         guard let userId = authViewModel.currentUser?.userId else {
+            hasAttemptedCloudLoad = true
             #if DEBUG
             print("未获取到 userId")
             #endif
@@ -115,6 +117,7 @@ struct LibraryView: View {
         }
         guard !isLoadingCloud else { return }
         isLoadingCloud = true
+        hasAttemptedCloudLoad = true
         #if DEBUG
         print("开始加载云端数据, userId: \(userId)")
         #endif
@@ -191,7 +194,7 @@ struct LibraryView: View {
     // MARK: - 网易Max 云端音乐区域
     private var cloudMusicSection: some View {
         LiquidGlassSection(title: "网易Max") {
-            if isLoadingCloud {
+            if isLoadingCloud || !hasAttemptedCloudLoad {
                 GridSkeletonView(
                     count: 6,
                     columns: [
@@ -207,16 +210,12 @@ struct LibraryView: View {
                     GridItem(.flexible(), spacing: 12)
                 ], spacing: 16) {
                     NavigationLink {
-                        if let likedPlaylist = cloudPlaylists.first(where: { $0.isLikedPlaylist }) {
-                            CloudLikedSongsView(playlist: likedPlaylist, songCount: likedSongIds.count)
-                        }
-                    } label: {
-                        CloudFeatureCard(
-                            icon: "heart.fill",
-                            iconColor: .pink,
-                            title: "喜欢的音乐",
-                            count: likedSongIds.count
+                        LikedMusicDestination(
+                            playlist: cloudPlaylists.first(where: { $0.isLikedPlaylist }),
+                            songCount: likedSongIds.count
                         )
+                    } label: {
+                        likedMusicCard
                     }
                     .buttonStyle(.plain)
 
@@ -290,6 +289,15 @@ struct LibraryView: View {
         }
     }
 
+    private var likedMusicCard: some View {
+        CloudFeatureCard(
+            icon: "heart.fill",
+            iconColor: .pink,
+            title: "喜欢的音乐",
+            count: likedSongIds.count
+        )
+    }
+
     private var followedPodcasts: [CloudDJRadio] {
         let createdIds = Set(createdPodcasts.map(\.id))
         return cloudPodcasts.filter { !createdIds.contains($0.id) }
@@ -344,6 +352,31 @@ struct LibraryView: View {
                 .padding(.horizontal, 4)
                 .padding(.vertical, 8)
             }
+        }
+    }
+}
+
+private struct LikedMusicDestination: View {
+    let playlist: CloudPlaylist?
+    let songCount: Int
+
+    var body: some View {
+        if let playlist {
+            CloudLikedSongsView(playlist: playlist, songCount: songCount)
+        } else {
+            ZStack {
+                ThemedBackground()
+                    .environmentObject(ThemeManager.shared)
+                VStack(spacing: 10) {
+                    Image(systemName: "heart")
+                        .font(.system(size: 32))
+                        .foregroundColor(.secondary)
+                    Text("还没有喜欢的音乐")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .immersiveNavigationChrome()
+            .navigationTitle("喜欢的音乐")
         }
     }
 }
@@ -900,7 +933,7 @@ final class LikedSongsStore: ObservableObject {
 struct CloudLikedSongsView: View {
     let playlist: CloudPlaylist
     let songCount: Int
-    @StateObject private var likedStore: LikedSongsStore = .shared
+    @ObservedObject private var likedStore = LikedSongsStore.shared
     @ObservedObject private var audioPlayer = AudioPlayer.shared
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var authViewModel: AuthViewModel

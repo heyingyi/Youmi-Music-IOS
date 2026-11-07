@@ -41,6 +41,13 @@ struct StorageDetail: Identifiable {
     let type: CacheType
 }
 
+struct CachePreviewItem: Identifiable {
+    let id = UUID()
+    let name: String
+    let size: Int64
+    let subtitle: String?
+}
+
 // MARK: - 缓存管理器
 final class CacheManager: ObservableObject {
     static let shared = CacheManager()
@@ -196,6 +203,111 @@ final class CacheManager: ObservableObject {
         return size
     }
     
+    func previewItems(for type: CacheType, limit: Int = 40) -> [CachePreviewItem] {
+        switch type {
+        case .image:
+            return listItems(inCachesDirectories: ["ImageCache"], limit: limit)
+        case .audio:
+            var items = listItems(inCachesDirectories: ["AudioCache", "fsCachedData"], limit: limit)
+            items.append(contentsOf: listTemporaryItems(limit: max(0, limit - items.count)))
+            if URLCache.shared.currentDiskUsage > 0 {
+                items.insert(
+                    CachePreviewItem(
+                        name: "系统网络缓存",
+                        size: Int64(URLCache.shared.currentDiskUsage),
+                        subtitle: "URLCache"
+                    ),
+                    at: 0
+                )
+            }
+            return Array(items.prefix(limit))
+        case .dynamicCover:
+            return listItems(inCachesDirectories: ["AnimatedArtwork", "DynamicCovers", "AppleMusicHLSCache"], limit: limit)
+        case .downloaded:
+            return downloadedSongPreviewItems(limit: limit)
+        case .all:
+            var items: [CachePreviewItem] = []
+            items.append(contentsOf: previewItems(for: .image, limit: 12))
+            items.append(contentsOf: previewItems(for: .audio, limit: 12))
+            items.append(contentsOf: previewItems(for: .dynamicCover, limit: 12))
+            let otherSize = storageDetails.first(where: { $0.name == "其他缓存" })?.size ?? 0
+            if otherSize > 0 {
+                items.append(CachePreviewItem(name: "其他缓存", size: otherSize, subtitle: "Caches 剩余目录"))
+            }
+            return Array(items.prefix(limit))
+        }
+    }
+
+    func previewSummary(for type: CacheType) -> (count: Int, size: Int64) {
+        let matching = storageDetails.filter { detail in
+            switch type {
+            case .all:
+                return detail.type != .downloaded
+            default:
+                return detail.type == type
+            }
+        }
+        let size = matching.reduce(Int64(0)) { $0 + $1.size }
+        return (matching.count, size)
+    }
+
+    private func listItems(inCachesDirectories names: [String], limit: Int) -> [CachePreviewItem] {
+        guard let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return [] }
+        var items: [CachePreviewItem] = []
+        for name in names {
+            let directory = cacheDir.appendingPathComponent(name)
+            items.append(contentsOf: listFiles(in: directory, fallbackName: name, limit: max(0, limit - items.count)))
+            if items.count >= limit { break }
+        }
+        return items
+    }
+
+    private func listTemporaryItems(limit: Int) -> [CachePreviewItem] {
+        let tmpDir = URL(fileURLWithPath: NSTemporaryDirectory())
+        return listFiles(in: tmpDir, fallbackName: "临时文件", limit: limit)
+    }
+
+    private func downloadedSongPreviewItems(limit: Int) -> [CachePreviewItem] {
+        listItems(inDocumentDirectories: ["LocalMusic"], limit: limit)
+    }
+
+    private func listItems(inDocumentDirectories names: [String], limit: Int) -> [CachePreviewItem] {
+        guard let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return [] }
+        var items: [CachePreviewItem] = []
+        for name in names {
+            items.append(contentsOf: listFiles(in: docs.appendingPathComponent(name), fallbackName: name, limit: max(0, limit - items.count)))
+            if items.count >= limit { break }
+        }
+        return items
+    }
+
+    private func listFiles(in directory: URL, fallbackName: String, limit: Int) -> [CachePreviewItem] {
+        guard limit > 0, fileManager.fileExists(atPath: directory.path) else { return [] }
+        let keys: [URLResourceKey] = [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+        guard let contents = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else {
+            return []
+        }
+        var files: [(name: String, size: Int64, date: Date)] = []
+        for url in contents {
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            if values?.isDirectory == true {
+                let size = calculateSize(of: url)
+                if size > 0 {
+                    files.append((url.lastPathComponent, size, values?.contentModificationDate ?? .distantPast))
+                }
+            } else {
+                let size = Int64(values?.fileSize ?? 0)
+                if size > 0 {
+                    files.append((url.lastPathComponent, size, values?.contentModificationDate ?? .distantPast))
+                }
+            }
+        }
+        files.sort { $0.size > $1.size }
+        return files.prefix(limit).map {
+            CachePreviewItem(name: $0.name.isEmpty ? fallbackName : $0.name, size: $0.size, subtitle: fallbackName)
+        }
+    }
+
     // MARK: - 清除缓存
     
     func clearCache(type: CacheType) async -> Bool {

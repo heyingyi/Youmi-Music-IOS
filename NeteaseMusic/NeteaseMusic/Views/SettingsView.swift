@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject private var audioPlayer = AudioPlayer.shared
-    @StateObject private var sourceConfig = MusicSourceConfig.shared
+    @ObservedObject private var sourceConfig = MusicSourceConfig.shared
     @Environment(\.dismiss) var dismiss
     
     // 次元裂缝过渡动画
@@ -14,9 +14,10 @@ struct SettingsView: View {
     @State private var pendingThemeStyle: ThemeStyle? = nil
     
     // 缓存管理
-    @StateObject private var cacheManager = CacheManager.shared
-    @State private var showClearCacheAlert = false
+    @ObservedObject private var cacheManager = CacheManager.shared
+    @State private var showCachePreview = false
     @State private var selectedCacheType: CacheType = .all
+    @State private var cachePreviewItems: [CachePreviewItem] = []
     @State private var clearCacheSuccess = false
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var showBackgroundPicker = false
@@ -59,18 +60,23 @@ struct SettingsView: View {
             guard let newItem else { return }
             Task { await loadPickedImage(from: newItem, target: pickerTarget) }
         }
-        .alert(cacheAlertTitle, isPresented: $showClearCacheAlert) {
-            Button("取消", role: .cancel) { }
-            Button("确定", role: .destructive) {
-                Task {
-                    let success = await cacheManager.clearCache(type: selectedCacheType)
-                    await MainActor.run {
-                        clearCacheSuccess = success
+        .sheet(isPresented: $showCachePreview) {
+            CacheClearPreviewSheet(
+                cacheType: selectedCacheType,
+                items: cachePreviewItems,
+                summaryText: cachePreviewSummaryText,
+                isClearing: cacheManager.isClearing,
+                onConfirm: {
+                    Task {
+                        let success = await cacheManager.clearCache(type: selectedCacheType)
+                        await MainActor.run {
+                            clearCacheSuccess = success
+                            showCachePreview = false
+                        }
                     }
-                }
-            }
-        } message: {
-            Text(cacheAlertMessage)
+                },
+                onCancel: { showCachePreview = false }
+            )
         }
             
             // 次元裂缝过渡效果
@@ -827,27 +833,23 @@ struct SettingsView: View {
         }
     }
 
-    private var cacheAlertTitle: String {
+    private var cachePreviewSummaryText: String {
+        let summary = cacheManager.previewSummary(for: selectedCacheType)
+        let sizeText = CacheManager.formatSize(summary.size)
         switch selectedCacheType {
-        case .downloaded: return "删除所有下载"
-        case .all: return "清除缓存"
-        default: return "清除\(selectedCacheType.rawValue)"
+        case .downloaded:
+            return "将删除 \(cachePreviewItems.count) 首已下载歌曲，约 \(sizeText)。此操作不可撤销。"
+        case .all:
+            return "将清除图片、音频流、动态封面等缓存（不含已下载歌曲），约 \(sizeText)。"
+        default:
+            return "将清除 \(selectedCacheType.rawValue)，约 \(sizeText)。下列为即将删除的内容预览。"
         }
     }
 
-    private var cacheAlertMessage: String {
-        switch selectedCacheType {
-        case .downloaded:
-            return "确定要删除所有已下载的歌曲吗？此操作不可撤销。"
-        case .image:
-            return "将清除专辑封面、艺人头像等图片缓存。"
-        case .audio:
-            return "将清除音频流和网络缓存。"
-        case .dynamicCover:
-            return "将清除动态封面缓存。"
-        case .all:
-            return "将清除图片、音频流、动态封面等缓存，不会删除已下载的歌曲。"
-        }
+    private func presentCachePreview(for type: CacheType) {
+        selectedCacheType = type
+        cachePreviewItems = cacheManager.previewItems(for: type)
+        showCachePreview = true
     }
     
     // MARK: - 缓存管理
@@ -889,8 +891,7 @@ struct SettingsView: View {
                     ForEach(cacheManager.storageDetails) { detail in
                         Button {
                             HapticFeedback.medium()
-                            selectedCacheType = detail.type
-                            showClearCacheAlert = true
+                            presentCachePreview(for: detail.type)
                         } label: {
                             HStack {
                                 Image(systemName: detail.icon)
@@ -925,8 +926,7 @@ struct SettingsView: View {
                 // 清除缓存按钮（不包含已下载歌曲）
                 Button {
                     HapticFeedback.medium()
-                    selectedCacheType = .all
-                    showClearCacheAlert = true
+                    presentCachePreview(for: .all)
                 } label: {
                     HStack {
                         Image(systemName: "trash")
@@ -964,8 +964,7 @@ struct SettingsView: View {
                     
                     Button {
                         HapticFeedback.medium()
-                        selectedCacheType = .downloaded
-                        showClearCacheAlert = true
+                        presentCachePreview(for: .downloaded)
                     } label: {
                         HStack {
                             Image(systemName: "trash")
@@ -1369,6 +1368,91 @@ private struct AppearanceCardGlassModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+private struct CacheClearPreviewSheet: View {
+    let cacheType: CacheType
+    let items: [CachePreviewItem]
+    let summaryText: String
+    let isClearing: Bool
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Text(summaryText)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+
+                if items.isEmpty {
+                    VStack(spacing: 10) {
+                        Image(systemName: cacheType.icon)
+                            .font(.system(size: 28))
+                            .foregroundColor(.secondary)
+                        Text("没有可预览的文件")
+                            .font(.system(size: 15))
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(items) { item in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: cacheType.icon)
+                                .font(.system(size: 16))
+                                .foregroundColor(.orange)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.name)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .lineLimit(2)
+                                if let subtitle = item.subtitle {
+                                    Text(subtitle)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            Spacer()
+                            Text(CacheManager.formatSize(item.size))
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .listStyle(.plain)
+                }
+
+                HStack(spacing: 12) {
+                    Button("取消", action: onCancel)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+
+                    Button(isClearing ? "正在清除…" : "确认删除", action: onConfirm)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .foregroundColor(.white)
+                        .background(Color.red, in: RoundedRectangle(cornerRadius: 12))
+                        .disabled(isClearing)
+                }
+                .font(.system(size: 16, weight: .semibold))
+                .padding(16)
+            }
+            .navigationTitle(cacheType == .downloaded ? "删除前预览" : "清除前预览")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭", action: onCancel)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
