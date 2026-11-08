@@ -37,20 +37,16 @@ final class ImageCache {
         // 创建缓存目录
         try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
 
-        // 监听内存警告
         NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleMemoryWarning),
-            name: UIApplication.didReceiveMemoryWarningNotification,
-            object: nil
-        )
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.clearMemoryCache()
+        }
 
         // 启动时清理过期缓存
         cleanExpiredDiskCache()
-    }
-    
-    @objc private func handleMemoryWarning() {
-        clearMemoryCache()
     }
     
     // MARK: - 内存缓存
@@ -250,7 +246,6 @@ final class ImageCache {
 }
 
 // MARK: - 缓存图片加载器
-@MainActor
 final class CachedImageLoader: ObservableObject {
     @Published var image: UIImage?
     @Published var isLoading = false

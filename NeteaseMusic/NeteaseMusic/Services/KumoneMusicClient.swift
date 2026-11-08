@@ -261,8 +261,8 @@ final class KumoneMusicClient {
                 return try pass([
                     "data": [
                         "code": json["code"] ?? 200,
-                        "account": json["account"] as Any,
-                        "profile": json["profile"] as Any
+                        "account": json["account"] ?? NSNull(),
+                        "profile": json["profile"] ?? NSNull()
                     ]
                 ])
             }
@@ -768,7 +768,7 @@ final class KumoneMusicClient {
             guard let word = item["first"] as? String, !word.isEmpty else { return nil }
             return [
                 "searchWord": word,
-                "score": item["second"] as Any,
+                "score": item["second"] ?? NSNull(),
                 "content": "",
                 "iconType": 0
             ]
@@ -816,7 +816,7 @@ final class KumoneMusicClient {
         var body = payload
         let csrf = cookie(named: "__csrf") ?? ""
         body["csrf_token"] = csrf
-        let json = try JSONSerialization.data(withJSONObject: body)
+        let json = try JSONSerialization.data(withJSONObject: jsonObject(body))
         let form = NetEaseCrypto.weapi(payload: json)
 
         var path = weapiPath(from: uri)
@@ -856,7 +856,7 @@ final class KumoneMusicClient {
         if let musicU = cookie(named: "MUSIC_U") { header["MUSIC_U"] = musicU }
         if let csrf = cookie(named: "__csrf") { header["__csrf"] = csrf }
         body["header"] = header
-        let json = try JSONSerialization.data(withJSONObject: body)
+        let json = try JSONSerialization.data(withJSONObject: jsonObject(body))
         let form = NetEaseCrypto.eapi(apiPath: apiPath, payload: json)
 
         guard let url = URL(string: "https://interface.music.163.com/eapi\(eapiPath)") else {
@@ -974,7 +974,11 @@ final class KumoneMusicClient {
     // MARK: - Helpers
 
     private func pass(_ json: [String: Any]) throws -> (Data, URLResponse) {
-        let data = try JSONSerialization.data(withJSONObject: json, options: [])
+        let sanitized = jsonObject(json)
+        guard JSONSerialization.isValidJSONObject(sanitized) else {
+            throw NetEaseDirectError.decoding("invalid json")
+        }
+        let data = try JSONSerialization.data(withJSONObject: sanitized, options: [])
         let response = HTTPURLResponse(
             url: URL(string: "https://music.163.com/")!,
             statusCode: 200,
@@ -982,6 +986,25 @@ final class KumoneMusicClient {
             headerFields: ["Content-Type": "application/json"]
         )!
         return (data, response)
+    }
+
+    private func jsonObject(_ value: Any) -> Any {
+        if value is NSNull { return value }
+        if let dict = value as? [String: Any] {
+            var out: [String: Any] = [:]
+            out.reserveCapacity(dict.count)
+            for (key, item) in dict {
+                out[key] = jsonObject(item)
+            }
+            return out
+        }
+        if let array = value as? [Any] {
+            return array.map { jsonObject($0) }
+        }
+        if JSONSerialization.isValidJSONObject([value]) {
+            return value
+        }
+        return NSNull()
     }
 
     private func intQuery(_ query: [String: String], _ key: String, _ fallback: Int = 0) -> Int {

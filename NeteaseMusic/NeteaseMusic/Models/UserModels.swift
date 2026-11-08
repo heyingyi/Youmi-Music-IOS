@@ -234,8 +234,8 @@ struct UserAccountResponse: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         code = JSONFlex.int(c, .code) ?? 0
-        account = try c.decodeIfPresent(Account.self, forKey: .account)
-        profile = try c.decodeIfPresent(UserProfile.self, forKey: .profile)
+        account = try? c.decodeIfPresent(Account.self, forKey: .account)
+        profile = try? c.decodeIfPresent(UserProfile.self, forKey: .profile)
     }
 }
 
@@ -256,8 +256,8 @@ struct LoginStatusData: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         code = JSONFlex.int(c, .code) ?? 200
-        account = try c.decodeIfPresent(Account.self, forKey: .account)
-        profile = try c.decodeIfPresent(UserProfile.self, forKey: .profile)
+        account = try? c.decodeIfPresent(Account.self, forKey: .account)
+        profile = try? c.decodeIfPresent(UserProfile.self, forKey: .profile)
     }
 }
 

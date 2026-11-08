@@ -542,18 +542,12 @@ struct LiquidGlassAvatar: View {
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
-        Group {
-            if let url = imageUrl {
-                CachedAsyncImage(url: url, targetSize: CGSize(width: size, height: size)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    placeholderView
-                }
-            } else {
-                placeholderView
-            }
+        CachedAsyncImage(url: imageUrl, targetSize: CGSize(width: size, height: size)) { image in
+            image
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } placeholder: {
+            placeholderView
         }
         .frame(width: size, height: size)
         .clipShape(Circle())

@@ -31,6 +31,7 @@ class AuthViewModel: ObservableObject {
     private let authService = AuthService.shared
     private let userService = UserService.shared
     private var qrCheckTimer: Timer?
+    private var isFetchingUser = false
     
     init() {
         // 恢复登录状态
@@ -291,18 +292,19 @@ class AuthViewModel: ObservableObject {
     
     /// 获取当前用户信息
     func fetchCurrentUser() async {
+        if isFetchingUser { return }
+        isFetchingUser = true
+        defer { isFetchingUser = false }
         if let status = try? await authService.getLoginStatus() {
             if let profile = status.data?.profile, profile.userId != 0 {
-                currentUser = profile
                 let uid = status.data?.account?.id ?? profile.userId
-                await mergeUserDetail(uid: uid, base: profile)
+                currentUser = await mergedProfile(uid: uid, base: profile)
                 return
             }
             if let account = status.data?.account, account.id != 0 {
                 if let detail = try? await userService.getUserDetail(uid: account.id),
                    let profile = detail.profile, profile.userId != 0 {
-                    currentUser = profile
-                    await mergeUserDetail(uid: account.id, base: profile)
+                    currentUser = await mergedProfile(uid: account.id, base: profile)
                     return
                 }
                 currentUser = UserProfile(
@@ -335,10 +337,10 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    private func mergeUserDetail(uid: Int, base: UserProfile) async {
+    private func mergedProfile(uid: Int, base: UserProfile) async -> UserProfile {
         guard let detail = try? await userService.getUserDetail(uid: uid),
-              let profile = detail.profile else { return }
-        currentUser = UserProfile(
+              let profile = detail.profile else { return base }
+        return UserProfile(
             userId: profile.userId,
             nickname: profile.nickname.isEmpty ? base.nickname : profile.nickname,
             avatarUrl: profile.avatarUrl ?? base.avatarUrl,
