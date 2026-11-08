@@ -16,6 +16,7 @@ struct LibraryView: View {
     @State private var cloudDiskCount: Int?
     @State private var isLoadingCloud = false
     @State private var hasAttemptedCloudLoad = false
+    @State private var pushRoute: LibraryPushRoute?
     
     private let userService = UserService.shared
     
@@ -44,11 +45,19 @@ struct LibraryView: View {
                 .padding(.bottom, 120)
             }
         }
+        .navigationDestination(isPresented: Binding(
+            get: { pushRoute != nil },
+            set: { if !$0 { pushRoute = nil } }
+        )) {
+            libraryDestination
+        }
         .immersiveNavigationChrome()
         .navigationTitle("我的")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                NavigationLink(destination: SettingsView().environmentObject(themeManager)) {
+                Button {
+                    pushRoute = .settings
+                } label: {
                     Image(systemName: "gearshape")
                         .font(.system(size: 17, weight: .medium))
                         .foregroundColor(.primary)
@@ -122,64 +131,73 @@ struct LibraryView: View {
         print("开始加载云端数据, userId: \(userId)")
         #endif
         
-        do {
-            async let playlists = userService.getUserPlaylists(uid: userId)
-            async let albums = userService.getAlbumSublist()
-            async let likeIds = userService.getLikeList(uid: userId)
-            async let created = userService.getCreatedDJRadios(uid: userId)
-            async let radios = userService.getDJSublist()
-            async let programs = userService.getDJProgramSublist()
-            async let disk = MusicService.shared.getCloudDisk(limit: 1, offset: 0)
+        async let playlists = optionalLoad { try await userService.getUserPlaylists(uid: userId) }
+        async let albums = optionalLoad { try await userService.getAlbumSublist() }
+        async let likeIds = optionalLoad { try await userService.getLikeList(uid: userId) }
+        async let created = optionalLoad { try await userService.getCreatedDJRadios(uid: userId) }
+        async let radios = optionalLoad { try await userService.getDJSublist() }
+        async let programs = optionalLoad { try await userService.getDJProgramSublist() }
+        async let disk = optionalLoad { try await MusicService.shared.getCloudDisk(limit: 1, offset: 0) }
 
-            cloudPlaylists = try await playlists
-            cloudAlbums = try await albums
-            likedSongIds = try await likeIds
-            createdPodcasts = (try? await created) ?? []
-            cloudPodcasts = (try? await radios) ?? []
-            collectedPrograms = (try? await programs) ?? []
-            if let disk = try? await disk {
+        let loadedPlaylists = await playlists ?? []
+        let loadedAlbums = await albums ?? []
+        let loadedLikeIds = await likeIds ?? []
+        let loadedCreated = await created ?? []
+        let loadedRadios = await radios ?? []
+        let loadedPrograms = await programs ?? []
+        let loadedDisk = await disk
+
+        await MainActor.run {
+            cloudPlaylists = loadedPlaylists
+            cloudAlbums = loadedAlbums
+            likedSongIds = loadedLikeIds
+            createdPodcasts = loadedCreated
+            cloudPodcasts = loadedRadios
+            collectedPrograms = loadedPrograms
+            if let disk = loadedDisk {
                 cloudDiskCount = disk.count ?? disk.data?.count
             }
-        } catch {
-            #if DEBUG
-            print("加载云端数据失败: \(error)")
-            #endif
+            isLoadingCloud = false
         }
+    }
 
-        isLoadingCloud = false
+    private func optionalLoad<T>(_ work: () async throws -> T) async -> T? {
+        try? await work()
     }
     
     // MARK: - 液态玻璃用户区域
     private var liquidGlassUserSection: some View {
         VStack(spacing: 0) {
-            if authViewModel.isLoggedIn, let profile = authViewModel.currentUser {
-                NavigationLink(destination: ProfileCardView().environmentObject(authViewModel)) {
+            if authViewModel.isLoggedIn {
+                Button {
+                    if authViewModel.currentUser != nil {
+                        pushRoute = .profile
+                    } else {
+                        Task { await authViewModel.fetchCurrentUser() }
+                    }
+                } label: {
                     LiquidGlassUserCard(
-                        avatarUrl: profile.avatarUrl.flatMap { URL(string: $0) },
-                        nickname: profile.nickname.isEmpty ? "网易云用户" : profile.nickname,
-                        level: profile.level
+                        avatarUrl: authViewModel.currentUser?.avatarUrl.flatMap { URL(string: $0) },
+                        nickname: {
+                            if let name = authViewModel.currentUser?.nickname, !name.isEmpty {
+                                return name
+                            }
+                            return authViewModel.currentUser == nil ? "正在加载资料" : "网易云用户"
+                        }(),
+                        level: authViewModel.currentUser?.level
                     )
                 }
-                .buttonStyle(LiquidGlassButtonStyle())
-            } else if authViewModel.isLoggedIn {
-                Button(action: {
-                    Task { await authViewModel.fetchCurrentUser() }
-                }) {
-                    LiquidGlassUserCard(
-                        avatarUrl: nil,
-                        nickname: "正在加载资料",
-                        level: nil
-                    )
-                }
-                .buttonStyle(LiquidGlassButtonStyle())
+                .buttonStyle(.plain)
                 .task {
-                    await authViewModel.refreshProfileOrSignOut()
+                    if authViewModel.currentUser == nil {
+                        await authViewModel.refreshProfileOrSignOut()
+                    }
                 }
             } else {
                 Button(action: { showLogin = true }) {
                     LiquidGlassLoginCard()
                 }
-                .buttonStyle(LiquidGlassButtonStyle())
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
@@ -209,19 +227,9 @@ struct LibraryView: View {
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12)
                 ], spacing: 16) {
-                    NavigationLink {
-                        LikedMusicDestination(
-                            playlist: cloudPlaylists.first(where: { $0.isLikedPlaylist }),
-                            songCount: likedSongIds.count
-                        )
-                    } label: {
-                        likedMusicCard
-                    }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        CloudPlaylistsView(playlists: cloudPlaylists.filter { !$0.isLikedPlaylist })
-                    } label: {
+                    Button { pushRoute = .likedMusic } label: { likedMusicCard }
+                        .buttonStyle(.plain)
+                    Button { pushRoute = .playlists } label: {
                         CloudFeatureCard(
                             icon: "music.note.list",
                             iconColor: .red,
@@ -230,11 +238,7 @@ struct LibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    
-                    // 收藏的专辑
-                    NavigationLink {
-                        CloudAlbumsView(albums: cloudAlbums)
-                    } label: {
+                    Button { pushRoute = .albums } label: {
                         CloudFeatureCard(
                             icon: "square.stack",
                             iconColor: .purple,
@@ -243,10 +247,7 @@ struct LibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    
-                    NavigationLink {
-                        CloudCollectedProgramsView(programs: collectedPrograms)
-                    } label: {
+                    Button { pushRoute = .collectedPrograms } label: {
                         CloudFeatureCard(
                             icon: "bookmark.fill",
                             iconColor: .teal,
@@ -255,13 +256,7 @@ struct LibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
-
-                    NavigationLink {
-                        CloudPodcastHubView(
-                            created: createdPodcasts,
-                            followed: followedPodcasts
-                        )
-                    } label: {
+                    Button { pushRoute = .podcasts } label: {
                         CloudFeatureCard(
                             icon: "mic.fill",
                             iconColor: .orange,
@@ -270,10 +265,7 @@ struct LibraryView: View {
                         )
                     }
                     .buttonStyle(.plain)
-
-                    NavigationLink {
-                        CloudDiskView()
-                    } label: {
+                    Button { pushRoute = .cloudDisk } label: {
                         CloudFeatureCard(
                             icon: "cloud.fill",
                             iconColor: .blue,
@@ -303,6 +295,48 @@ struct LibraryView: View {
         return cloudPodcasts.filter { !createdIds.contains($0.id) }
     }
 
+    @ViewBuilder
+    private var libraryDestination: some View {
+        switch pushRoute {
+        case .settings:
+            SettingsView()
+                .environmentObject(themeManager)
+        case .profile:
+            ProfileCardView()
+                .environmentObject(authViewModel)
+                .environmentObject(themeManager)
+        case .likedMusic:
+            LikedMusicDestination(
+                playlist: cloudPlaylists.first(where: { $0.isLikedPlaylist }),
+                songCount: likedSongIds.count
+            )
+        case .playlists:
+            CloudPlaylistsView(playlists: cloudPlaylists.filter { !$0.isLikedPlaylist })
+                .environmentObject(themeManager)
+        case .albums:
+            CloudAlbumsView(albums: cloudAlbums)
+                .environmentObject(themeManager)
+        case .collectedPrograms:
+            CloudCollectedProgramsView(programs: collectedPrograms)
+        case .podcasts:
+            CloudPodcastHubView(created: createdPodcasts, followed: followedPodcasts)
+        case .cloudDisk:
+            CloudDiskView()
+                .environmentObject(themeManager)
+        case .localSongs:
+            LocalMusicView()
+                .environmentObject(themeManager)
+        case .localFavorites:
+            FavoritesView()
+                .environmentObject(themeManager)
+        case .playHistory:
+            PlayHistoryView()
+                .environmentObject(themeManager)
+        case nil:
+            EmptyView()
+        }
+    }
+
     // MARK: - 液态玻璃收藏库内容
     private var liquidGlassLibraryContent: some View {
         VStack(spacing: 20) {
@@ -313,9 +347,7 @@ struct LibraryView: View {
                     GridItem(.flexible(), spacing: 12),
                     GridItem(.flexible(), spacing: 12)
                 ], spacing: 16) {
-                    NavigationLink {
-                        LocalMusicView()
-                    } label: {
+                    Button { pushRoute = .localSongs } label: {
                         CloudFeatureCard(
                             icon: "music.note.house.fill",
                             iconColor: .green,
@@ -325,9 +357,7 @@ struct LibraryView: View {
                     }
                     .buttonStyle(.plain)
 
-                    NavigationLink {
-                        FavoritesView()
-                    } label: {
+                    Button { pushRoute = .localFavorites } label: {
                         CloudFeatureCard(
                             icon: "heart.fill",
                             iconColor: .red,
@@ -337,9 +367,7 @@ struct LibraryView: View {
                     }
                     .buttonStyle(.plain)
 
-                    NavigationLink {
-                        PlayHistoryView()
-                    } label: {
+                    Button { pushRoute = .playHistory } label: {
                         CloudFeatureCard(
                             icon: "clock.fill",
                             iconColor: .orange,
@@ -354,6 +382,20 @@ struct LibraryView: View {
             }
         }
     }
+}
+
+private enum LibraryPushRoute: Hashable {
+    case settings
+    case profile
+    case likedMusic
+    case playlists
+    case albums
+    case collectedPrograms
+    case podcasts
+    case cloudDisk
+    case localSongs
+    case localFavorites
+    case playHistory
 }
 
 private struct LikedMusicDestination: View {

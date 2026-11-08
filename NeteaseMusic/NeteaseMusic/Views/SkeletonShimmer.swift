@@ -220,16 +220,15 @@ struct GridSkeletonView: View {
     
     var body: some View {
         LazyVGrid(columns: columns, spacing: 16) {
-            ForEach(0..<count, id: \.self) { _ in
+            ForEach(0..<count, id: \.self) { index in
                 VStack(alignment: .leading, spacing: 8) {
-                    let size = (UIScreen.main.bounds.width - 56) / 2
                     RoundedRectangle(cornerRadius: 12)
                         .fill(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
-                        .frame(height: size)
+                        .aspectRatio(1, contentMode: .fit)
                         .shimmer(speed: 1.4)
                     
                     SkeletonBlock(height: 14)
-                    SkeletonBlock(width: size * 0.6, height: 12)
+                    SkeletonBlock(width: index % 2 == 0 ? 72 : 56, height: 12)
                 }
             }
         }

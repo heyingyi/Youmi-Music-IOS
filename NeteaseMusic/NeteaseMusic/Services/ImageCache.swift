@@ -10,12 +10,18 @@ final class ImageCache {
     private let fileManager = FileManager.default
     private let cacheDirectory: URL
     private let ioQueue = DispatchQueue(label: "com.neteasemusic.imagecache", qos: .utility)
+    private let displayScale: CGFloat
 
     // 磁盘缓存限制
     private let maxDiskCacheSize: Int64 = 200 * 1024 * 1024  // 200MB
     private let maxCacheAge: TimeInterval = 7 * 24 * 60 * 60  // 7天
 
     private init() {
+        if Thread.isMainThread {
+            displayScale = UIScreen.main.scale
+        } else {
+            displayScale = DispatchQueue.main.sync { UIScreen.main.scale }
+        }
         // 根据设备内存动态设置缓存限制
         let totalMemory = ProcessInfo.processInfo.physicalMemory
         let memoryFraction = totalMemory / 8  // 使用 1/8 物理内存
@@ -142,8 +148,7 @@ final class ImageCache {
             return UIImage(data: data)
         }
         
-        let scale = UIScreen.main.scale
-        let maxDimension = max(targetSize.width, targetSize.height) * scale
+        let maxDimension = max(targetSize.width, targetSize.height) * displayScale
         
         let downsampleOptions = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -245,6 +250,7 @@ final class ImageCache {
 }
 
 // MARK: - 缓存图片加载器
+@MainActor
 final class CachedImageLoader: ObservableObject {
     @Published var image: UIImage?
     @Published var isLoading = false

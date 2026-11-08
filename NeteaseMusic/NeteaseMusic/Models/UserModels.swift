@@ -215,7 +215,7 @@ struct UserDetailResponse: Codable {
         code = JSONFlex.int(c, .code) ?? 0
         level = JSONFlex.int(c, .level)
         listenSongs = JSONFlex.int(c, .listenSongs)
-        profile = try c.decodeIfPresent(UserProfile.self, forKey: .profile)
+        profile = try? c.decodeIfPresent(UserProfile.self, forKey: .profile)
         createDays = JSONFlex.int(c, .createDays)
         createTime = JSONFlex.int64(c, .createTime)
     }
@@ -307,12 +307,20 @@ struct CaptchaVerifyResponse: Codable {
 }
 
 // MARK: - 用户歌单相关
-struct UserPlaylistResponse: Codable {
+struct UserPlaylistResponse: Decodable {
     let code: Int
     let playlist: [CloudPlaylist]?
+
+    enum CodingKeys: String, CodingKey { case code, playlist }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        playlist = (JSONFlex.array(c, .playlist) ?? []).filter { $0.id != 0 }
+    }
 }
 
-struct CloudPlaylist: Codable, Identifiable {
+struct CloudPlaylist: Decodable, Identifiable {
     let id: Int
     let name: String
     let coverImgUrl: String?
@@ -322,6 +330,23 @@ struct CloudPlaylist: Codable, Identifiable {
     let createTime: Int64?
     let specialType: Int?       // 5 表示喜欢的音乐
     let description: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, coverImgUrl, trackCount, playCount, userId, createTime, specialType, description
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+        coverImgUrl = JSONFlex.string(c, .coverImgUrl)
+        trackCount = JSONFlex.int(c, .trackCount)
+        playCount = JSONFlex.int(c, .playCount)
+        userId = JSONFlex.int(c, .userId)
+        createTime = JSONFlex.int64(c, .createTime)
+        specialType = JSONFlex.int(c, .specialType)
+        description = JSONFlex.string(c, .description)
+    }
     
     var isLikedPlaylist: Bool {
         specialType == 5
@@ -333,9 +358,23 @@ struct CloudPlaylist: Codable, Identifiable {
 }
 
 // MARK: - 喜欢的音乐ID列表
-struct LikelistResponse: Codable {
+struct LikelistResponse: Decodable {
     let code: Int
     let ids: [Int]?
+
+    enum CodingKeys: String, CodingKey { case code, ids }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        if let ints: [Int] = JSONFlex.array(c, .ids) {
+            ids = ints
+        } else if let strings: [String] = JSONFlex.array(c, .ids) {
+            ids = strings.compactMap { Int($0) }
+        } else {
+            ids = []
+        }
+    }
 }
 
 // MARK: - 喜欢歌曲响应
@@ -359,13 +398,22 @@ struct LikeResponse: Decodable {
 }
 
 // MARK: - 收藏的专辑
-struct AlbumSublistResponse: Codable {
+struct AlbumSublistResponse: Decodable {
     let code: Int
     let data: [CloudAlbum]?
     let count: Int?
+
+    enum CodingKeys: String, CodingKey { case code, data, count }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        code = JSONFlex.int(c, .code) ?? 0
+        data = (JSONFlex.array(c, .data) ?? []).filter { $0.id != 0 }
+        count = JSONFlex.int(c, .count)
+    }
 }
 
-struct CloudAlbum: Codable, Identifiable {
+struct CloudAlbum: Decodable, Identifiable {
     let id: Int
     let name: String
     let picUrl: String?
@@ -373,6 +421,21 @@ struct CloudAlbum: Codable, Identifiable {
     let artists: [CloudArtist]?
     let size: Int?              // 歌曲数
     let publishTime: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, picUrl, artist, artists, size, publishTime
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+        picUrl = JSONFlex.string(c, .picUrl)
+        artist = try? c.decodeIfPresent(CloudArtist.self, forKey: .artist)
+        artists = JSONFlex.array(c, .artists)
+        size = JSONFlex.int(c, .size)
+        publishTime = JSONFlex.int64(c, .publishTime)
+    }
     
     var coverUrl: String? {
         picUrl?.replacingOccurrences(of: "http://", with: "https://")
@@ -383,9 +446,17 @@ struct CloudAlbum: Codable, Identifiable {
     }
 }
 
-struct CloudArtist: Codable {
+struct CloudArtist: Decodable {
     let id: Int
     let name: String
+
+    enum CodingKeys: String, CodingKey { case id, name }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = JSONFlex.int(c, .id) ?? 0
+        name = JSONFlex.string(c, .name) ?? ""
+    }
 }
 
 // MARK: - 播客
