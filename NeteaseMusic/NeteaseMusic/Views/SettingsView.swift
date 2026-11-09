@@ -25,6 +25,7 @@ struct SettingsView: View {
     @State private var pickerTarget: SettingsPhotoTarget = .background
     @State private var importSourceText = ""
     @ObservedObject private var chrome = ChromeLayoutConfig.shared
+    @State private var crashLogRevision = 0
 
     var body: some View {
         ZStack {
@@ -48,6 +49,8 @@ struct SettingsView: View {
                 
                 // 缓存管理
                 liquidGlassCacheSection
+
+                liquidGlassCrashLogSection
             }
             .padding(.bottom, 120)
         }
@@ -852,6 +855,61 @@ struct SettingsView: View {
         showCachePreview = true
     }
     
+    private var liquidGlassCrashLogSection: some View {
+        themedSection(title: "诊断") {
+            VStack(spacing: 0) {
+                Button {
+                    UIPasteboard.general.string = CrashLogStore.shared.exportText()
+                    NotificationCenter.default.post(name: .appToast, object: "诊断日志已复制")
+                } label: {
+                    HStack {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.blue)
+                        Text("复制崩溃日志")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(themeTextColor)
+                        Spacer()
+                        Text(hasStoredCrashLog ? "有上次崩溃" : "无崩溃")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                themedDivider
+
+                Button {
+                    CrashLogStore.shared.clear()
+                    crashLogRevision += 1
+                    NotificationCenter.default.post(name: .appToast, object: "诊断日志已清空")
+                } label: {
+                    HStack {
+                        Image(systemName: "trash")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.orange)
+                        Text("清空诊断日志")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.orange)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var hasStoredCrashLog: Bool {
+        _ = crashLogRevision
+        return CrashLogStore.shared.lastCrashText() != nil
+    }
+
     // MARK: - 缓存管理
     private var liquidGlassCacheSection: some View {
         themedSection(title: "存储") {

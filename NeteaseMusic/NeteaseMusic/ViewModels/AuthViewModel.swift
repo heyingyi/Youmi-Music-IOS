@@ -295,16 +295,20 @@ class AuthViewModel: ObservableObject {
         if isFetchingUser { return }
         isFetchingUser = true
         defer { isFetchingUser = false }
+        CrashLogStore.shared.breadcrumb("fetchCurrentUser begin cookie=\(KumoneMusicClient.shared.hasLoginCookie())")
         if let status = try? await authService.getLoginStatus() {
+            CrashLogStore.shared.breadcrumb("loginStatus code=\(status.data?.code ?? -1) uid=\(status.data?.profile?.userId ?? status.data?.account?.id ?? 0) nick=\(status.data?.profile?.nickname ?? "")")
             if let profile = status.data?.profile, profile.userId != 0 {
                 let uid = status.data?.account?.id ?? profile.userId
                 currentUser = await mergedProfile(uid: uid, base: profile)
+                CrashLogStore.shared.breadcrumb("fetchCurrentUser profile uid=\(currentUser?.userId ?? 0)")
                 return
             }
             if let account = status.data?.account, account.id != 0 {
                 if let detail = try? await userService.getUserDetail(uid: account.id),
                    let profile = detail.profile, profile.userId != 0 {
                     currentUser = await mergedProfile(uid: account.id, base: profile)
+                    CrashLogStore.shared.breadcrumb("fetchCurrentUser detail uid=\(currentUser?.userId ?? 0)")
                     return
                 }
                 currentUser = UserProfile(
@@ -312,15 +316,17 @@ class AuthViewModel: ObservableObject {
                     nickname: account.userName ?? "网易云用户",
                     vipType: account.vipType
                 )
+                CrashLogStore.shared.breadcrumb("fetchCurrentUser account-only uid=\(account.id)")
                 return
             }
+        } else {
+            CrashLogStore.shared.breadcrumb("loginStatus decode-or-request failed")
         }
         do {
             currentUser = try await userService.getCurrentUserProfile()
+            CrashLogStore.shared.breadcrumb("fetchCurrentUser account-api uid=\(currentUser?.userId ?? 0)")
         } catch {
-            #if DEBUG
-            print("Fetch user error: \(error)")
-            #endif
+            CrashLogStore.shared.breadcrumb("fetchCurrentUser error=\(error.localizedDescription)")
         }
         if currentUser != nil {
             isLoggedIn = true

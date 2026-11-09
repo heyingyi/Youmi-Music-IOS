@@ -4,6 +4,7 @@ import WebKit
 @main
 struct NeteaseMusicApp: App {
     init() {
+        CrashLogStore.shared.install()
         // 配置 API 服务器地址
         APIConfig.setBaseURL("https://youmimusicapi.preview.aliyun-zeabur.cn")
         // 预热网络连接（避免首次请求卡顿）

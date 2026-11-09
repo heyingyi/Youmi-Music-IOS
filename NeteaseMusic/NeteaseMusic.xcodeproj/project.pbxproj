@@ -84,6 +84,7 @@
 		BEANSAPI02BUILD11111111 /* KumoneMusicClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */; };
 		CUSTOMAUDIO01BUILD11111 /* CustomAudioSourceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CUSTOMAUDIO01FILE111111 /* CustomAudioSourceService.swift */; };
 		NETEASECDN01BUILD111111 /* NeteaseCDNHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = NETEASECDN01FILE1111111 /* NeteaseCDNHost.swift */; };
+		CRASHLOG01BUILD11111111 /* CrashLogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CRASHLOG01FILE111111111 /* CrashLogStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -193,6 +194,7 @@
 		BEANSAPI03FILE111111111 /* NeteaseMusic-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "NeteaseMusic-Bridging-Header.h"; sourceTree = "<group>"; };
 		CUSTOMAUDIO01FILE111111 /* CustomAudioSourceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomAudioSourceService.swift; sourceTree = "<group>"; };
 		NETEASECDN01FILE1111111 /* NeteaseCDNHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeteaseCDNHost.swift; sourceTree = "<group>"; };
+		CRASHLOG01FILE111111111 /* CrashLogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashLogStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -242,6 +244,7 @@
 				BEANSAPI02FILE111111111 /* KumoneMusicClient.swift */,
 				CUSTOMAUDIO01FILE111111 /* CustomAudioSourceService.swift */,
 				NETEASECDN01FILE1111111 /* NeteaseCDNHost.swift */,
+				CRASHLOG01FILE111111111 /* CrashLogStore.swift */,
 				BEANSAPI01FILE111111111 /* NetEaseCrypto.swift */,
 				A3B3F4CFF92096C444FB808F /* AudioPlayer.swift */,
 				2CA1B80932941136A7A71416 /* AuthService.swift */,
@@ -573,6 +576,7 @@
 				BEANSAPI02BUILD11111111 /* KumoneMusicClient.swift in Sources */,
 				CUSTOMAUDIO01BUILD11111 /* CustomAudioSourceService.swift in Sources */,
 				NETEASECDN01BUILD111111 /* NeteaseCDNHost.swift in Sources */,
+				CRASHLOG01BUILD11111111 /* CrashLogStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -664,14 +668,14 @@
 				CODE_SIGN_ENTITLEMENTS = NeteaseMusic/NeteaseMusic.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = NLBB5JFQDD;
 				INFOPLIST_FILE = NeteaseMusic/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5;
+				MARKETING_VERSION = 2.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.youmi.neteasemusic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -833,14 +837,14 @@
 				CODE_SIGN_ENTITLEMENTS = NeteaseMusic/NeteaseMusic.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = NLBB5JFQDD;
 				INFOPLIST_FILE = NeteaseMusic/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.5;
+				MARKETING_VERSION = 2.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.youmi.neteasemusic;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

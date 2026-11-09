@@ -256,7 +256,10 @@ final class KumoneMusicClient {
             return try pass(json)
 
         case "login/status", "user/account":
+            CrashLogStore.shared.breadcrumb("kumone \(route) begin")
             let json = try await request("/api/w/nuser/account/get", payload: [:], crypto: "weapi")
+            let profile = json["profile"] as? [String: Any]
+            CrashLogStore.shared.breadcrumb("kumone \(route) code=\(intValue(json["code"])) uid=\(intValue(profile?["userId"]))")
             if route == "login/status" {
                 return try pass([
                     "data": [
@@ -275,16 +278,21 @@ final class KumoneMusicClient {
 
         case "user/detail":
             let uid = intQuery(query, "uid")
+            CrashLogStore.shared.breadcrumb("kumone user/detail uid=\(uid)")
             let json = try await request("/api/v1/user/detail/\(uid)", payload: [:], crypto: "weapi")
+            CrashLogStore.shared.breadcrumb("kumone user/detail code=\(intValue(json["code"]))")
             return try pass(json)
 
         case "user/playlist":
+            CrashLogStore.shared.breadcrumb("kumone user/playlist uid=\(intQuery(query, "uid"))")
             let json = try await request("/api/user/playlist", payload: [
                 "uid": intQuery(query, "uid"),
                 "limit": intQuery(query, "limit", 1000),
                 "offset": intQuery(query, "offset", 0),
                 "includeVideo": true
             ], crypto: "weapi")
+            let count = (json["playlist"] as? [Any])?.count ?? -1
+            CrashLogStore.shared.breadcrumb("kumone user/playlist code=\(intValue(json["code"])) count=\(count)")
             return try pass(json)
 
         case "likelist":

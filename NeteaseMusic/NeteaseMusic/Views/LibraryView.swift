@@ -63,6 +63,7 @@ struct LibraryView: View {
                 .environmentObject(authViewModel)
         }
         .task {
+            CrashLogStore.shared.breadcrumb("LibraryView.task loggedIn=\(authViewModel.isLoggedIn) uid=\(authViewModel.currentUser?.userId ?? 0)")
             guard authViewModel.isLoggedIn else { return }
             if authViewModel.currentUser == nil {
                 await authViewModel.fetchCurrentUser()
@@ -111,17 +112,13 @@ struct LibraryView: View {
     private func loadCloudData() async {
         guard let userId = authViewModel.currentUser?.userId else {
             hasAttemptedCloudLoad = true
-            #if DEBUG
-            print("未获取到 userId")
-            #endif
+            CrashLogStore.shared.breadcrumb("loadCloudData skip no-uid")
             return
         }
         guard !isLoadingCloud else { return }
         isLoadingCloud = true
         hasAttemptedCloudLoad = true
-        #if DEBUG
-        print("开始加载云端数据, userId: \(userId)")
-        #endif
+        CrashLogStore.shared.breadcrumb("loadCloudData begin uid=\(userId)")
         
         async let playlists = optionalLoad { try await userService.getUserPlaylists(uid: userId) }
         async let albums = optionalLoad { try await userService.getAlbumSublist() }
@@ -139,6 +136,7 @@ struct LibraryView: View {
         let loadedPrograms = await programs ?? []
         let loadedDisk = await disk
 
+        CrashLogStore.shared.breadcrumb("loadCloudData done playlists=\(loadedPlaylists.count) albums=\(loadedAlbums.count) likes=\(loadedLikeIds.count)")
         await MainActor.run {
             cloudPlaylists = loadedPlaylists
             cloudAlbums = loadedAlbums
@@ -154,7 +152,12 @@ struct LibraryView: View {
     }
 
     private func optionalLoad<T>(_ work: () async throws -> T) async -> T? {
-        try? await work()
+        do {
+            return try await work()
+        } catch {
+            CrashLogStore.shared.breadcrumb("optionalLoad error=\(error.localizedDescription)")
+            return nil
+        }
     }
     
     // MARK: - 液态玻璃用户区域
