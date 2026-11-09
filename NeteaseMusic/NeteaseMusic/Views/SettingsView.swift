@@ -57,6 +57,7 @@ struct SettingsView: View {
         .immersiveNavigationChrome()
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.large)
+        .onAppear { crashLogRevision += 1 }
         .photosPicker(isPresented: $showBackgroundPicker, selection: $selectedPhotoItem, matching: .images)
         .photosPicker(isPresented: $showSplashPicker, selection: $selectedPhotoItem, matching: .images)
         .onChangeCompat(of: selectedPhotoItem) { _, newItem in
@@ -860,17 +861,18 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 Button {
                     UIPasteboard.general.string = CrashLogStore.shared.exportText()
+                    crashLogRevision += 1
                     NotificationCenter.default.post(name: .appToast, object: "诊断日志已复制")
                 } label: {
                     HStack {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.blue)
-                        Text("复制崩溃日志")
+                        Text("复制诊断日志")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(themeTextColor)
                         Spacer()
-                        Text(hasStoredCrashLog ? "有上次崩溃" : "无崩溃")
+                        Text(diagnosticStatusText)
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
@@ -905,9 +907,11 @@ struct SettingsView: View {
         }
     }
 
-    private var hasStoredCrashLog: Bool {
+    private var diagnosticStatusText: String {
         _ = crashLogRevision
-        return CrashLogStore.shared.lastCrashText() != nil
+        if CrashLogStore.shared.lastCrashText() != nil { return "有上次崩溃" }
+        if CrashLogStore.shared.hasDiagnostics() { return "有运行轨迹" }
+        return "无记录"
     }
 
     // MARK: - 缓存管理

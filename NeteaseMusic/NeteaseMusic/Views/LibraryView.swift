@@ -68,6 +68,7 @@ struct LibraryView: View {
             if authViewModel.currentUser == nil {
                 await authViewModel.fetchCurrentUser()
             }
+            try? await Task.sleep(nanoseconds: 250_000_000)
             await loadCloudData()
         }
         .onChangeCompat(of: authViewModel.currentUser?.userId) { _, userId in
@@ -120,21 +121,16 @@ struct LibraryView: View {
         hasAttemptedCloudLoad = true
         CrashLogStore.shared.breadcrumb("loadCloudData begin uid=\(userId)")
         
-        async let playlists = optionalLoad { try await userService.getUserPlaylists(uid: userId) }
-        async let albums = optionalLoad { try await userService.getAlbumSublist() }
-        async let likeIds = optionalLoad { try await userService.getLikeList(uid: userId) }
-        async let created = optionalLoad { try await userService.getCreatedDJRadios(uid: userId) }
-        async let radios = optionalLoad { try await userService.getDJSublist() }
-        async let programs = optionalLoad { try await userService.getDJProgramSublist() }
-        async let disk = optionalLoad { try await MusicService.shared.getCloudDisk(limit: 1, offset: 0) }
-
-        let loadedPlaylists = await playlists ?? []
-        let loadedAlbums = await albums ?? []
-        let loadedLikeIds = await likeIds ?? []
-        let loadedCreated = await created ?? []
-        let loadedRadios = await radios ?? []
-        let loadedPrograms = await programs ?? []
-        let loadedDisk = await disk
+        let loadedPlaylists = await optionalLoad { try await userService.getUserPlaylists(uid: userId) } ?? []
+        CrashLogStore.shared.breadcrumb("cloud playlists=\(loadedPlaylists.count)")
+        let loadedAlbums = await optionalLoad { try await userService.getAlbumSublist() } ?? []
+        CrashLogStore.shared.breadcrumb("cloud albums=\(loadedAlbums.count)")
+        let loadedLikeIds = await optionalLoad { try await userService.getLikeList(uid: userId) } ?? []
+        CrashLogStore.shared.breadcrumb("cloud likes=\(loadedLikeIds.count)")
+        let loadedCreated = await optionalLoad { try await userService.getCreatedDJRadios(uid: userId) } ?? []
+        let loadedRadios = await optionalLoad { try await userService.getDJSublist() } ?? []
+        let loadedPrograms = await optionalLoad { try await userService.getDJProgramSublist() } ?? []
+        let loadedDisk = await optionalLoad { try await MusicService.shared.getCloudDisk(limit: 1, offset: 0) }
 
         CrashLogStore.shared.breadcrumb("loadCloudData done playlists=\(loadedPlaylists.count) albums=\(loadedAlbums.count) likes=\(loadedLikeIds.count)")
         await MainActor.run {
@@ -166,14 +162,14 @@ struct LibraryView: View {
             if authViewModel.isLoggedIn {
                 NavigationLink(value: LibraryPushRoute.profile) {
                     LiquidGlassUserCard(
-                        avatarUrl: authViewModel.currentUser?.avatarUrl.flatMap { URL(string: $0) },
+                        avatarUrl: nil,
                         nickname: {
                             if let name = authViewModel.currentUser?.nickname, !name.isEmpty {
                                 return name
                             }
                             return authViewModel.currentUser == nil ? "正在加载资料" : "网易云用户"
                         }(),
-                        level: authViewModel.currentUser?.level
+                        level: nil
                     )
                 }
                 .buttonStyle(.plain)

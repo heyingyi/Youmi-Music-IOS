@@ -17,11 +17,7 @@ final class ImageCache {
     private let maxCacheAge: TimeInterval = 7 * 24 * 60 * 60  // 7天
 
     private init() {
-        if Thread.isMainThread {
-            displayScale = UIScreen.main.scale
-        } else {
-            displayScale = DispatchQueue.main.sync { UIScreen.main.scale }
-        }
+        displayScale = 3
         // 根据设备内存动态设置缓存限制
         let totalMemory = ProcessInfo.processInfo.physicalMemory
         let memoryFraction = totalMemory / 8  // 使用 1/8 物理内存
@@ -131,7 +127,8 @@ final class ImageCache {
     }
     
     private func diskCachePath(for url: URL) -> URL {
-        let fileName = url.absoluteString.data(using: .utf8)!.base64EncodedString()
+        let raw = url.absoluteString.data(using: .utf8) ?? Data(url.absoluteString.utf8)
+        let fileName = raw.base64EncodedString()
             .replacingOccurrences(of: "/", with: "_")
             .prefix(200)
         return cacheDirectory.appendingPathComponent(String(fileName))
@@ -282,7 +279,11 @@ final class CachedImageLoader: ObservableObject {
 
         // 1. 先检查内存缓存（同步）
         if let cached = cache.getFromMemory(url, targetSize: targetSize) {
-            self.image = cached
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isSameRequest(url: url, targetSize: targetSize) else { return }
+                self.image = cached
+                self.isLoading = false
+            }
             return
         }
 

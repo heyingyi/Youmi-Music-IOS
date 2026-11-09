@@ -300,23 +300,28 @@ class AuthViewModel: ObservableObject {
             CrashLogStore.shared.breadcrumb("loginStatus code=\(status.data?.code ?? -1) uid=\(status.data?.profile?.userId ?? status.data?.account?.id ?? 0) nick=\(status.data?.profile?.nickname ?? "")")
             if let profile = status.data?.profile, profile.userId != 0 {
                 let uid = status.data?.account?.id ?? profile.userId
-                currentUser = await mergedProfile(uid: uid, base: profile)
-                CrashLogStore.shared.breadcrumb("fetchCurrentUser profile uid=\(currentUser?.userId ?? 0)")
+                let merged = await mergedProfile(uid: uid, base: profile)
+                CrashLogStore.shared.breadcrumb("fetchCurrentUser profile uid=\(merged.userId) nick=\(merged.nickname)")
+                await Task.yield()
+                currentUser = merged
                 return
             }
             if let account = status.data?.account, account.id != 0 {
                 if let detail = try? await userService.getUserDetail(uid: account.id),
                    let profile = detail.profile, profile.userId != 0 {
-                    currentUser = await mergedProfile(uid: account.id, base: profile)
-                    CrashLogStore.shared.breadcrumb("fetchCurrentUser detail uid=\(currentUser?.userId ?? 0)")
+                    let merged = await mergedProfile(uid: account.id, base: profile)
+                    CrashLogStore.shared.breadcrumb("fetchCurrentUser detail uid=\(merged.userId)")
+                    await Task.yield()
+                    currentUser = merged
                     return
                 }
+                CrashLogStore.shared.breadcrumb("fetchCurrentUser account-only uid=\(account.id)")
+                await Task.yield()
                 currentUser = UserProfile(
                     userId: account.id,
                     nickname: account.userName ?? "网易云用户",
                     vipType: account.vipType
                 )
-                CrashLogStore.shared.breadcrumb("fetchCurrentUser account-only uid=\(account.id)")
                 return
             }
         } else {

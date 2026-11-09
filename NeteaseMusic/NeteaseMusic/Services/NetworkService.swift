@@ -134,10 +134,10 @@ class NetworkService {
             }
             #endif
             
-            let decoder = JSONDecoder()
             do {
-                let result = try decoder.decode(T.self, from: data)
-                return result
+                return try await Task.detached(priority: .userInitiated) {
+                    try JSONDecoder().decode(T.self, from: data)
+                }.value
             } catch {
                 throw NetworkError.decodingError(error)
             }
@@ -164,7 +164,9 @@ class NetworkService {
 
     private func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         if let url = request.url, KumoneMusicClient.shared.shouldHandle(url: url) {
-            return try await KumoneMusicClient.shared.proxy(url: url)
+            return try await Task.detached(priority: .userInitiated) {
+                try await KumoneMusicClient.shared.proxy(url: url)
+            }.value
         }
         return try await session.data(for: request)
     }
