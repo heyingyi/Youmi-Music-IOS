@@ -62,19 +62,14 @@ struct LibraryView: View {
             LoginSheetView()
                 .environmentObject(authViewModel)
         }
-        .task {
+        .task(id: authViewModel.currentUser?.userId ?? 0) {
             CrashLogStore.shared.breadcrumb("LibraryView.task loggedIn=\(authViewModel.isLoggedIn) uid=\(authViewModel.currentUser?.userId ?? 0)")
             guard authViewModel.isLoggedIn else { return }
             if authViewModel.currentUser == nil {
                 await authViewModel.fetchCurrentUser()
+                return
             }
-            try? await Task.sleep(nanoseconds: 250_000_000)
             await loadCloudData()
-        }
-        .onChangeCompat(of: authViewModel.currentUser?.userId) { _, userId in
-            if userId != nil, cloudPlaylists.isEmpty, !isLoadingCloud {
-                Task { await loadCloudData() }
-            }
         }
         .onChangeCompat(of: authViewModel.isLoggedIn) { _, isLoggedIn in
             if !isLoggedIn {
@@ -120,31 +115,20 @@ struct LibraryView: View {
         isLoadingCloud = true
         hasAttemptedCloudLoad = true
         CrashLogStore.shared.breadcrumb("loadCloudData begin uid=\(userId)")
-        
+
         let loadedPlaylists = await optionalLoad { try await userService.getUserPlaylists(uid: userId) } ?? []
         CrashLogStore.shared.breadcrumb("cloud playlists=\(loadedPlaylists.count)")
-        let loadedAlbums = await optionalLoad { try await userService.getAlbumSublist() } ?? []
-        CrashLogStore.shared.breadcrumb("cloud albums=\(loadedAlbums.count)")
+        cloudPlaylists = loadedPlaylists
+        isLoadingCloud = false
+
         let loadedLikeIds = await optionalLoad { try await userService.getLikeList(uid: userId) } ?? []
         CrashLogStore.shared.breadcrumb("cloud likes=\(loadedLikeIds.count)")
-        let loadedCreated = await optionalLoad { try await userService.getCreatedDJRadios(uid: userId) } ?? []
-        let loadedRadios = await optionalLoad { try await userService.getDJSublist() } ?? []
-        let loadedPrograms = await optionalLoad { try await userService.getDJProgramSublist() } ?? []
-        let loadedDisk = await optionalLoad { try await MusicService.shared.getCloudDisk(limit: 1, offset: 0) }
+        likedSongIds = loadedLikeIds
 
-        CrashLogStore.shared.breadcrumb("loadCloudData done playlists=\(loadedPlaylists.count) albums=\(loadedAlbums.count) likes=\(loadedLikeIds.count)")
-        await MainActor.run {
-            cloudPlaylists = loadedPlaylists
-            cloudAlbums = loadedAlbums
-            likedSongIds = loadedLikeIds
-            createdPodcasts = loadedCreated
-            cloudPodcasts = loadedRadios
-            collectedPrograms = loadedPrograms
-            if let disk = loadedDisk {
-                cloudDiskCount = disk.count ?? disk.data?.count
-            }
-            isLoadingCloud = false
-        }
+        let loadedAlbums = await optionalLoad { try await userService.getAlbumSublist() } ?? []
+        CrashLogStore.shared.breadcrumb("cloud albums=\(loadedAlbums.count)")
+        cloudAlbums = loadedAlbums
+        CrashLogStore.shared.breadcrumb("loadCloudData core done")
     }
 
     private func optionalLoad<T>(_ work: () async throws -> T) async -> T? {
@@ -188,7 +172,7 @@ struct LibraryView: View {
     // MARK: - 网易Max 云端音乐区域
     private var cloudMusicSection: some View {
         LiquidGlassSection(title: "网易Max") {
-            if isLoadingCloud || !hasAttemptedCloudLoad {
+            if isLoadingCloud && cloudPlaylists.isEmpty && !hasAttemptedCloudLoad {
                 GridSkeletonView(
                     count: 6,
                     columns: [
@@ -293,9 +277,10 @@ struct LibraryView: View {
             CloudAlbumsView(albums: cloudAlbums)
                 .environmentObject(themeManager)
         case .collectedPrograms:
-            CloudCollectedProgramsView(programs: collectedPrograms)
+            CloudCollectedProgramsView(programs: [])
         case .podcasts:
-            CloudPodcastHubView(created: createdPodcasts, followed: followedPodcasts)
+            CloudPodcastHubView(created: [], followed: [])
+                .environmentObject(authViewModel)
         case .cloudDisk:
             CloudDiskView()
                 .environmentObject(themeManager)
@@ -1061,7 +1046,12 @@ struct CloudLikedSongsView: View {
 // MARK: - 收藏的专辑页面
 struct CloudAlbumsView: View {
     let albums: [CloudAlbum]
+    @State private var loaded: [CloudAlbum] = []
     @EnvironmentObject var themeManager: ThemeManager
+
+    private var items: [CloudAlbum] {
+        loaded.isEmpty ? albums : loaded
+    }
     
     let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -1074,7 +1064,7 @@ struct CloudAlbumsView: View {
                 .environmentObject(themeManager)
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(albums) { album in
+                    ForEach(items) { album in
                         NavigationLink {
                             CloudAlbumDetailView(album: album)
                         } label: {
@@ -1088,6 +1078,11 @@ struct CloudAlbumsView: View {
         }
         .immersiveNavigationChrome()
         .navigationTitle("收藏的专辑")
+        .task {
+            if albums.isEmpty {
+                loaded = (try? await UserService.shared.getAlbumSublist()) ?? []
+            }
+        }
     }
 }
 
@@ -1916,6 +1911,18 @@ struct CloudCollectedProgramsView: View {
 struct CloudPodcastHubView: View {
     let created: [CloudDJRadio]
     let followed: [CloudDJRadio]
+    @EnvironmentObject var authViewModel: AuthViewModel
+    @State private var loadedCreated: [CloudDJRadio] = []
+    @State private var loadedFollowed: [CloudDJRadio] = []
+    @State private var isLoading = true
+
+    private var createdItems: [CloudDJRadio] {
+        loadedCreated.isEmpty ? created : loadedCreated
+    }
+
+    private var followedItems: [CloudDJRadio] {
+        loadedFollowed.isEmpty ? followed : loadedFollowed
+    }
 
     var body: some View {
         ZStack {
@@ -1924,25 +1931,25 @@ struct CloudPodcastHubView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     NavigationLink {
-                        CloudPodcastsView(radios: created, title: "我创建的播客")
+                        CloudPodcastsView(radios: createdItems, title: "我创建的播客")
                     } label: {
                         CloudFeatureCard(
                             icon: "mic.fill",
                             iconColor: .orange,
                             title: "我创建的播客",
-                            count: created.count
+                            count: isLoading && createdItems.isEmpty ? nil : createdItems.count
                         )
                     }
                     .buttonStyle(.plain)
 
                     NavigationLink {
-                        CloudPodcastsView(radios: followed, title: "我关注的播客")
+                        CloudPodcastsView(radios: followedItems, title: "我关注的播客")
                     } label: {
                         CloudFeatureCard(
                             icon: "antenna.radiowaves.left.and.right",
                             iconColor: .teal,
                             title: "我关注的播客",
-                            count: followed.count
+                            count: isLoading && followedItems.isEmpty ? nil : followedItems.count
                         )
                     }
                     .buttonStyle(.plain)
@@ -1955,6 +1962,17 @@ struct CloudPodcastHubView: View {
         .immersiveNavigationChrome()
         .navigationTitle("播客")
         .navigationBarTitleDisplayMode(.large)
+        .task {
+            CrashLogStore.shared.breadcrumb("podcast hub load uid=\(authViewModel.currentUser?.userId ?? 0)")
+            let uid = authViewModel.currentUser?.userId ?? 0
+            if uid != 0 {
+                loadedCreated = (try? await UserService.shared.getCreatedDJRadios(uid: uid)) ?? created
+                CrashLogStore.shared.breadcrumb("podcast created=\(loadedCreated.count)")
+            }
+            loadedFollowed = (try? await UserService.shared.getDJSublist()) ?? followed
+            CrashLogStore.shared.breadcrumb("podcast followed=\(loadedFollowed.count)")
+            isLoading = false
+        }
     }
 }
 

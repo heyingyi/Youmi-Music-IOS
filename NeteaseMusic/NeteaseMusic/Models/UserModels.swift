@@ -49,15 +49,6 @@ private enum JSONFlex {
 
 private struct JSONSkip: Decodable {
     init(from decoder: Decoder) throws {
-        if var unkeyed = try? decoder.unkeyedContainer() {
-            while !unkeyed.isAtEnd {
-                _ = try? unkeyed.decode(JSONSkip.self)
-            }
-            return
-        }
-        if let _ = try? decoder.container(keyedBy: JSONSkipKey.self) {
-            return
-        }
         _ = try? decoder.singleValueContainer()
     }
 }

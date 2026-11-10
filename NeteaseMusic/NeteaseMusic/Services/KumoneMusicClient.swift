@@ -296,9 +296,12 @@ final class KumoneMusicClient {
             return try pass(json)
 
         case "likelist":
+            CrashLogStore.shared.breadcrumb("kumone likelist uid=\(intQuery(query, "uid"))")
             let json = try await request("/api/song/like/get", payload: [
                 "uid": intQuery(query, "uid")
             ], crypto: "weapi")
+            let count = (json["ids"] as? [Any])?.count ?? -1
+            CrashLogStore.shared.breadcrumb("kumone likelist code=\(intValue(json["code"])) count=\(count)")
             return try pass(json)
 
         case "like":
@@ -582,14 +585,17 @@ final class KumoneMusicClient {
             return try pass(json)
 
         case "dj/sublist":
+            CrashLogStore.shared.breadcrumb("kumone dj/sublist")
             let json = try await request("/api/djradio/get/subed", payload: [
                 "limit": intQuery(query, "limit", 100),
                 "offset": intQuery(query, "offset", 0),
                 "total": true
             ], crypto: "weapi")
+            CrashLogStore.shared.breadcrumb("kumone dj/sublist code=\(intValue(json["code"]))")
             return try pass(json)
 
         case "user/dj":
+            CrashLogStore.shared.breadcrumb("kumone user/dj uid=\(intQuery(query, "uid"))")
             var json = try await request("/api/djradio/get/byuser", payload: [
                 "userId": intQuery(query, "uid")
             ], crypto: "weapi")
@@ -608,6 +614,7 @@ final class KumoneMusicClient {
             }
             json["djRadios"] = radios
             json["code"] = intValue(json["code"], fallback: 200)
+            CrashLogStore.shared.breadcrumb("kumone user/dj radios=\(radios.count)")
             return try pass(json)
 
         case "dj/program":
