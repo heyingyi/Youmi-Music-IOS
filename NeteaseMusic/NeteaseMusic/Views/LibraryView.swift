@@ -1897,7 +1897,14 @@ struct CloudCollectedProgramsView: View {
     }
 
     private func reload() async {
-        loaded = (try? await UserService.shared.getDJProgramSublist()) ?? programs
+        CrashLogStore.shared.breadcrumb("collected programs load begin")
+        do {
+            loaded = try await UserService.shared.getDJProgramSublist()
+            CrashLogStore.shared.breadcrumb("collected programs count=\(loaded.count)")
+        } catch {
+            CrashLogStore.shared.breadcrumb("collected programs error=\(error.localizedDescription)")
+            loaded = programs
+        }
         isLoading = false
     }
 

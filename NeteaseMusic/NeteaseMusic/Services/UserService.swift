@@ -69,6 +69,21 @@ class UserService {
         guard response.code == 200 else {
             throw NetworkError.serverError(response.code, "获取歌单失败")
         }
+        var list = response.playlist ?? []
+        let subscribed = (try? await getPlaylistSublist()) ?? []
+        var seen = Set(list.map(\.id))
+        for playlist in subscribed where seen.insert(playlist.id).inserted {
+            list.append(playlist)
+        }
+        return list
+    }
+
+    /// 获取收藏的歌单
+    func getPlaylistSublist() async throws -> [CloudPlaylist] {
+        let response: UserPlaylistResponse = try await network.get(endpoint: .playlistSublist)
+        guard response.code == 200 else {
+            throw NetworkError.serverError(response.code, "获取收藏歌单失败")
+        }
         return response.playlist ?? []
     }
     

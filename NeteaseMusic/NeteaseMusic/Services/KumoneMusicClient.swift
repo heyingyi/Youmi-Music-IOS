@@ -291,14 +291,29 @@ final class KumoneMusicClient {
             CrashLogStore.shared.breadcrumb("kumone user/playlist uid=\(intQuery(query, "uid"))")
             let json = try await request("/api/user/playlist", payload: [
                 "uid": intQuery(query, "uid"),
-                "limit": min(intQuery(query, "limit", 100), 100),
+                "limit": min(intQuery(query, "limit", 200), 200),
                 "offset": intQuery(query, "offset", 0),
-                "includeVideo": false
+                "includeVideo": true
             ], crypto: "weapi")
             let slim = slimPlaylists(json)
             let count = (slim["playlist"] as? [Any])?.count ?? -1
             CrashLogStore.shared.breadcrumb("kumone user/playlist code=\(intValue(slim["code"])) count=\(count)")
             return try pass(slim)
+
+        case "playlist/sublist":
+            CrashLogStore.shared.breadcrumb("kumone playlist/sublist")
+            let json = try await request("/api/playlist/sublist", payload: [
+                "limit": min(intQuery(query, "limit", 100), 100),
+                "offset": intQuery(query, "offset", 0)
+            ], crypto: "weapi")
+            let items = slimPlaylistItems(json)
+            CrashLogStore.shared.breadcrumb("kumone playlist/sublist code=\(intValue(json["code"])) count=\(items.count)")
+            return try pass([
+                "code": intValue(json["code"], fallback: 200),
+                "playlist": items,
+                "data": items,
+                "count": json["count"] ?? items.count
+            ])
 
         case "likelist":
             CrashLogStore.shared.breadcrumb("kumone likelist uid=\(intQuery(query, "uid"))")
@@ -598,9 +613,10 @@ final class KumoneMusicClient {
             ], crypto: "weapi")
             let radios = extractRadios(json)
             CrashLogStore.shared.breadcrumb("kumone dj/sublist code=\(intValue(json["code"])) count=\(radios.count)")
-            var slim = json
-            slim["djRadios"] = radios.map(slimRadio)
-            return try pass(slim)
+            return try pass([
+                "code": intValue(json["code"], fallback: 200),
+                "djRadios": radios.map(slimRadio)
+            ])
 
         case "user/dj":
             CrashLogStore.shared.breadcrumb("kumone user/dj uid=\(intQuery(query, "uid"))")
@@ -620,48 +636,41 @@ final class KumoneMusicClient {
                     radios = altRadios
                 }
             }
-            json["djRadios"] = radios.map(slimRadio)
-            json["code"] = intValue(json["code"], fallback: 200)
             CrashLogStore.shared.breadcrumb("kumone user/dj radios=\(radios.count)")
-            return try pass(json)
+            return try pass([
+                "code": intValue(json["code"], fallback: 200),
+                "djRadios": radios.map(slimRadio)
+            ])
 
         case "dj/program":
+            CrashLogStore.shared.breadcrumb("kumone dj/program rid=\(intQuery(query, "rid"))")
             let json = try await request("/api/dj/program/byradio", payload: [
                 "radioId": intQuery(query, "rid"),
-                "limit": intQuery(query, "limit", 100),
+                "limit": min(intQuery(query, "limit", 100), 100),
                 "offset": intQuery(query, "offset", 0),
                 "asc": false
             ], crypto: "weapi")
-            return try pass(unwrapProgramList(json))
+            let programs = extractPrograms(json).map(slimProgram)
+            CrashLogStore.shared.breadcrumb("kumone dj/program count=\(programs.count)")
+            return try pass([
+                "code": intValue(json["code"], fallback: 200),
+                "programs": programs
+            ])
 
         case "dj/program/sublist":
-            let payload: [String: Any] = [
-                "limit": intQuery(query, "limit", 100),
+            CrashLogStore.shared.breadcrumb("kumone program/sublist begin")
+            let json = try await request("/api/program/sub/list", payload: [
+                "limit": min(intQuery(query, "limit", 30), 30),
                 "offset": intQuery(query, "offset", 0),
                 "total": true
-            ]
-            let attempts: [(String, String)] = [
-                ("/api/program/sub/list", "weapi"),
-                ("/api/djprogram/subscribed", "weapi"),
-                ("/api/dj/program/sub/list", "weapi"),
-                ("/api/program/sub/list", "eapi"),
-                ("/api/djprogram/sub/list", "weapi"),
-                ("/api/v1/dj/program/subed", "weapi"),
-                ("/api/djradio/program/subscribed", "weapi"),
-                ("/api/program/subscribed", "weapi")
-            ]
-            var json: [String: Any] = ["code": 200]
-            var programs: [[String: Any]] = []
-            for (path, crypto) in attempts {
-                guard let result = try? await request(path, payload: payload, crypto: crypto) else { continue }
-                json = result
-                programs = extractPrograms(json)
-                if !programs.isEmpty { break }
-            }
-            json["programs"] = programs.map(slimProgram)
-            json["code"] = intValue(json["code"], fallback: 200)
-            CrashLogStore.shared.breadcrumb("kumone program/sublist count=\(programs.count)")
-            return try pass(json)
+            ], crypto: "weapi")
+            let programs = extractPrograms(json).map(slimProgram)
+            CrashLogStore.shared.breadcrumb("kumone program/sublist code=\(intValue(json["code"])) count=\(programs.count)")
+            return try pass([
+                "code": intValue(json["code"], fallback: 200),
+                "programs": programs,
+                "count": json["count"] ?? programs.count
+            ])
 
         case "dj/program/sub":
             let id = intQuery(query, "id")
@@ -1036,21 +1045,29 @@ final class KumoneMusicClient {
         value as? [String: Any] ?? [:]
     }
 
+    private func slimPlaylistItem(_ item: [String: Any]) -> [String: Any] {
+        [
+            "id": item["id"] ?? 0,
+            "name": item["name"] ?? "",
+            "coverImgUrl": item["coverImgUrl"] ?? item["picUrl"] ?? "",
+            "trackCount": item["trackCount"] ?? 0,
+            "playCount": item["playCount"] ?? 0,
+            "userId": item["userId"] ?? 0,
+            "createTime": item["createTime"] ?? 0,
+            "specialType": item["specialType"] ?? 0,
+            "description": item["description"] ?? ""
+        ]
+    }
+
+    private func slimPlaylistItems(_ json: [String: Any]) -> [[String: Any]] {
+        let raw = dictList(json["playlist"])
+        if !raw.isEmpty { return raw.map(slimPlaylistItem) }
+        return dictList(json["data"]).map(slimPlaylistItem)
+    }
+
     private func slimPlaylists(_ json: [String: Any]) -> [String: Any] {
         var out: [String: Any] = ["code": json["code"] ?? 200]
-        out["playlist"] = dictList(json["playlist"]).map { item -> [String: Any] in
-            [
-                "id": item["id"] ?? 0,
-                "name": item["name"] ?? "",
-                "coverImgUrl": item["coverImgUrl"] ?? "",
-                "trackCount": item["trackCount"] ?? 0,
-                "playCount": item["playCount"] ?? 0,
-                "userId": item["userId"] ?? 0,
-                "createTime": item["createTime"] ?? 0,
-                "specialType": item["specialType"] ?? 0,
-                "description": item["description"] ?? ""
-            ]
-        }
+        out["playlist"] = slimPlaylistItems(json)
         return out
     }
 

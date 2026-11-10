@@ -28,6 +28,7 @@ enum APIEndpoint {
     case userAccount                 // 获取账号信息
     case userDetail(uid: Int)        // 获取用户详情
     case userPlaylist(uid: Int)      // 获取用户歌单
+    case playlistSublist             // 收藏的歌单
     case likelist(uid: Int)          // 获取喜欢的音乐ID列表
     case like(id: Int, like: Bool)   // 喜欢/取消喜欢歌曲
     case albumSublist                // 获取收藏的专辑
@@ -62,7 +63,9 @@ enum APIEndpoint {
         case .userDetail(let uid):
             return "/user/detail?uid=\(uid)"
         case .userPlaylist(let uid):
-            return "/user/playlist?uid=\(uid)"
+            return "/user/playlist?uid=\(uid)&limit=200&offset=0"
+        case .playlistSublist:
+            return "/playlist/sublist?limit=100&offset=0"
         case .likelist(let uid):
             return "/likelist?uid=\(uid)"
         case .like(let id, let like):

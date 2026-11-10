@@ -300,12 +300,12 @@ struct UserPlaylistResponse: Decodable {
     let code: Int
     let playlist: [CloudPlaylist]?
 
-    enum CodingKeys: String, CodingKey { case code, playlist }
+    enum CodingKeys: String, CodingKey { case code, playlist, data }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         code = JSONFlex.int(c, .code) ?? 0
-        playlist = (JSONFlex.array(c, .playlist) ?? []).filter { $0.id != 0 }
+        playlist = (JSONFlex.array(c, .playlist) ?? JSONFlex.array(c, .data) ?? []).filter { $0.id != 0 }
     }
 }
 
