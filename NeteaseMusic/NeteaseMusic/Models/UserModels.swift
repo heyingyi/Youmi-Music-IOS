@@ -39,8 +39,8 @@ private enum JSONFlex {
         while !unkeyed.isAtEnd {
             if let item = try? unkeyed.decode(T.self) {
                 items.append(item)
-            } else {
-                _ = try? unkeyed.decode(JSONSkip.self)
+            } else if (try? unkeyed.decode(JSONSkip.self)) == nil {
+                break
             }
         }
         return items
@@ -48,9 +48,7 @@ private enum JSONFlex {
 }
 
 private struct JSONSkip: Decodable {
-    init(from decoder: Decoder) throws {
-        _ = try? decoder.singleValueContainer()
-    }
+    init(from decoder: Decoder) throws {}
 }
 
 private struct JSONSkipKey: CodingKey {

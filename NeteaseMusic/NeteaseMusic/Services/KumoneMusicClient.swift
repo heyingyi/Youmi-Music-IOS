@@ -264,12 +264,16 @@ final class KumoneMusicClient {
                 return try pass([
                     "data": [
                         "code": json["code"] ?? 200,
-                        "account": json["account"] ?? NSNull(),
-                        "profile": json["profile"] ?? NSNull()
+                        "account": slimAccount(json["account"]),
+                        "profile": slimProfile(json["profile"])
                     ]
                 ])
             }
-            return try pass(json)
+            return try pass([
+                "code": json["code"] ?? 200,
+                "account": slimAccount(json["account"]),
+                "profile": slimProfile(json["profile"])
+            ])
 
         case "logout":
             _ = try? await request("/api/logout", payload: [:], crypto: "weapi")
@@ -281,19 +285,20 @@ final class KumoneMusicClient {
             CrashLogStore.shared.breadcrumb("kumone user/detail uid=\(uid)")
             let json = try await request("/api/v1/user/detail/\(uid)", payload: [:], crypto: "weapi")
             CrashLogStore.shared.breadcrumb("kumone user/detail code=\(intValue(json["code"]))")
-            return try pass(json)
+            return try pass(slimUserDetail(json))
 
         case "user/playlist":
             CrashLogStore.shared.breadcrumb("kumone user/playlist uid=\(intQuery(query, "uid"))")
             let json = try await request("/api/user/playlist", payload: [
                 "uid": intQuery(query, "uid"),
-                "limit": intQuery(query, "limit", 1000),
+                "limit": min(intQuery(query, "limit", 100), 100),
                 "offset": intQuery(query, "offset", 0),
-                "includeVideo": true
+                "includeVideo": false
             ], crypto: "weapi")
-            let count = (json["playlist"] as? [Any])?.count ?? -1
-            CrashLogStore.shared.breadcrumb("kumone user/playlist code=\(intValue(json["code"])) count=\(count)")
-            return try pass(json)
+            let slim = slimPlaylists(json)
+            let count = (slim["playlist"] as? [Any])?.count ?? -1
+            CrashLogStore.shared.breadcrumb("kumone user/playlist code=\(intValue(slim["code"])) count=\(count)")
+            return try pass(slim)
 
         case "likelist":
             CrashLogStore.shared.breadcrumb("kumone likelist uid=\(intQuery(query, "uid"))")
@@ -302,7 +307,7 @@ final class KumoneMusicClient {
             ], crypto: "weapi")
             let count = (json["ids"] as? [Any])?.count ?? -1
             CrashLogStore.shared.breadcrumb("kumone likelist code=\(intValue(json["code"])) count=\(count)")
-            return try pass(json)
+            return try pass(slimLikelist(json))
 
         case "like":
             let id = intQuery(query, "id")
@@ -315,11 +320,11 @@ final class KumoneMusicClient {
 
         case "album/sublist":
             let json = try await request("/api/album/sublist", payload: [
-                "limit": intQuery(query, "limit", 50),
+                "limit": min(intQuery(query, "limit", 50), 50),
                 "offset": intQuery(query, "offset", 0),
                 "total": true
             ], crypto: "weapi")
-            return try pass(json)
+            return try pass(slimAlbums(json))
 
         case "personalized":
             let json = try await request("/api/personalized/playlist", payload: [
@@ -591,8 +596,11 @@ final class KumoneMusicClient {
                 "offset": intQuery(query, "offset", 0),
                 "total": true
             ], crypto: "weapi")
-            CrashLogStore.shared.breadcrumb("kumone dj/sublist code=\(intValue(json["code"]))")
-            return try pass(json)
+            let radios = extractRadios(json)
+            CrashLogStore.shared.breadcrumb("kumone dj/sublist code=\(intValue(json["code"])) count=\(radios.count)")
+            var slim = json
+            slim["djRadios"] = radios.map(slimRadio)
+            return try pass(slim)
 
         case "user/dj":
             CrashLogStore.shared.breadcrumb("kumone user/dj uid=\(intQuery(query, "uid"))")
@@ -612,7 +620,7 @@ final class KumoneMusicClient {
                     radios = altRadios
                 }
             }
-            json["djRadios"] = radios
+            json["djRadios"] = radios.map(slimRadio)
             json["code"] = intValue(json["code"], fallback: 200)
             CrashLogStore.shared.breadcrumb("kumone user/dj radios=\(radios.count)")
             return try pass(json)
@@ -650,8 +658,9 @@ final class KumoneMusicClient {
                 programs = extractPrograms(json)
                 if !programs.isEmpty { break }
             }
-            json["programs"] = programs
+            json["programs"] = programs.map(slimProgram)
             json["code"] = intValue(json["code"], fallback: 200)
+            CrashLogStore.shared.breadcrumb("kumone program/sublist count=\(programs.count)")
             return try pass(json)
 
         case "dj/program/sub":
@@ -1003,23 +1012,164 @@ final class KumoneMusicClient {
         return (data, response)
     }
 
-    private func jsonObject(_ value: Any) -> Any {
+    private func jsonObject(_ value: Any, depth: Int = 0) -> Any {
+        if depth > 6 { return NSNull() }
         if value is NSNull { return value }
         if let dict = value as? [String: Any] {
             var out: [String: Any] = [:]
             out.reserveCapacity(dict.count)
             for (key, item) in dict {
-                out[key] = jsonObject(item)
+                out[key] = jsonObject(item, depth: depth + 1)
             }
             return out
         }
         if let array = value as? [Any] {
-            return array.map { jsonObject($0) }
+            return array.map { jsonObject($0, depth: depth + 1) }
         }
         if JSONSerialization.isValidJSONObject([value]) {
             return value
         }
         return NSNull()
+    }
+
+    private func dictList(_ value: Any?) -> [[String: Any]] {
+        (value as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
+    }
+
+    private func asDict(_ value: Any?) -> [String: Any] {
+        value as? [String: Any] ?? [:]
+    }
+
+    private func slimPlaylists(_ json: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = ["code": json["code"] ?? 200]
+        out["playlist"] = dictList(json["playlist"]).map { item -> [String: Any] in
+            [
+                "id": item["id"] ?? 0,
+                "name": item["name"] ?? "",
+                "coverImgUrl": item["coverImgUrl"] ?? "",
+                "trackCount": item["trackCount"] ?? 0,
+                "playCount": item["playCount"] ?? 0,
+                "userId": item["userId"] ?? 0,
+                "createTime": item["createTime"] ?? 0,
+                "specialType": item["specialType"] ?? 0,
+                "description": item["description"] ?? ""
+            ]
+        }
+        return out
+    }
+
+    private func slimAlbums(_ json: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = ["code": json["code"] ?? 200]
+        out["count"] = json["count"] ?? 0
+        out["data"] = dictList(json["data"]).map { item -> [String: Any] in
+            let artist = asDict(item["artist"])
+            return [
+                "id": item["id"] ?? 0,
+                "name": item["name"] ?? "",
+                "picUrl": item["picUrl"] ?? "",
+                "size": item["size"] ?? 0,
+                "publishTime": item["publishTime"] ?? 0,
+                "artist": [
+                    "id": artist["id"] ?? 0,
+                    "name": artist["name"] ?? ""
+                ]
+            ]
+        }
+        return out
+    }
+
+    private func slimAccount(_ value: Any?) -> Any {
+        guard let account = value as? [String: Any] else { return NSNull() }
+        return [
+            "id": account["id"] ?? 0,
+            "userName": account["userName"] ?? "",
+            "type": account["type"] ?? 0,
+            "status": account["status"] ?? 0,
+            "createTime": account["createTime"] ?? 0,
+            "vipType": account["vipType"] ?? 0
+        ]
+    }
+
+    private func slimProfile(_ value: Any?) -> Any {
+        guard let profile = value as? [String: Any] else { return NSNull() }
+        return [
+            "userId": profile["userId"] ?? 0,
+            "nickname": profile["nickname"] ?? "",
+            "avatarUrl": profile["avatarUrl"] ?? "",
+            "backgroundUrl": profile["backgroundUrl"] ?? "",
+            "signature": profile["signature"] ?? "",
+            "gender": profile["gender"] ?? 0,
+            "birthday": profile["birthday"] ?? 0,
+            "city": profile["city"] ?? 0,
+            "province": profile["province"] ?? 0,
+            "followed": profile["followed"] ?? false,
+            "followeds": profile["followeds"] ?? 0,
+            "follows": profile["follows"] ?? 0,
+            "playlistCount": profile["playlistCount"] ?? 0,
+            "eventCount": profile["eventCount"] ?? 0,
+            "vipType": profile["vipType"] ?? 0,
+            "level": profile["level"] ?? 0,
+            "listenSongs": profile["listenSongs"] ?? 0
+        ]
+    }
+
+    private func slimLikelist(_ json: [String: Any]) -> [String: Any] {
+        var out: [String: Any] = ["code": json["code"] ?? 200]
+        out["ids"] = json["ids"] ?? []
+        return out
+    }
+
+    private func slimUserDetail(_ json: [String: Any]) -> [String: Any] {
+        var profile = asDict(slimProfile(json["profile"]))
+        if profile["level"] as? Int == 0 { profile["level"] = json["level"] ?? 0 }
+        if profile["listenSongs"] as? Int == 0 { profile["listenSongs"] = json["listenSongs"] ?? 0 }
+        return [
+            "code": json["code"] ?? 200,
+            "level": json["level"] ?? 0,
+            "listenSongs": json["listenSongs"] ?? 0,
+            "profile": profile
+        ]
+    }
+
+    private func slimRadio(_ item: [String: Any]) -> [String: Any] {
+        let dj = item["dj"] as? [String: Any]
+        return [
+            "id": item["id"] ?? item["radioId"] ?? 0,
+            "name": item["name"] ?? "",
+            "picUrl": item["picUrl"] ?? item["coverUrl"] ?? "",
+            "programCount": item["programCount"] ?? 0,
+            "playCount": item["playCount"] ?? 0,
+            "desc": item["desc"] ?? "",
+            "userId": item["userId"] ?? item["createUserId"] ?? 0,
+            "dj": [
+                "nickname": dj?["nickname"] ?? "",
+                "userId": dj?["userId"] ?? dj?["id"] ?? 0
+            ]
+        ]
+    }
+
+    private func slimProgram(_ item: [String: Any]) -> [String: Any] {
+        let radio = item["radio"] as? [String: Any]
+        let song = (item["mainSong"] as? [String: Any]) ?? (item["song"] as? [String: Any])
+        return [
+            "id": item["id"] ?? item["programId"] ?? 0,
+            "name": item["name"] ?? "",
+            "coverUrl": item["coverUrl"] ?? item["picUrl"] ?? item["coverImgUrl"] ?? "",
+            "duration": item["duration"] ?? 0,
+            "listenerCount": item["listenerCount"] ?? 0,
+            "createTime": item["createTime"] ?? 0,
+            "description": item["description"] ?? "",
+            "mainSong": [
+                "id": song?["id"] ?? 0,
+                "name": song?["name"] ?? "",
+                "duration": song?["duration"] ?? song?["dt"] ?? 0
+            ],
+            "radio": [
+                "id": radio?["id"] ?? 0,
+                "name": radio?["name"] ?? "",
+                "picUrl": radio?["picUrl"] ?? ""
+            ]
+        ]
     }
 
     private func intQuery(_ query: [String: String], _ key: String, _ fallback: Int = 0) -> Int {

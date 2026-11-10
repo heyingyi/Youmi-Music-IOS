@@ -146,14 +146,14 @@ struct LibraryView: View {
             if authViewModel.isLoggedIn {
                 NavigationLink(value: LibraryPushRoute.profile) {
                     LiquidGlassUserCard(
-                        avatarUrl: nil,
+                        avatarUrl: authViewModel.currentUser?.avatarUrl.flatMap { URL(string: $0) },
                         nickname: {
                             if let name = authViewModel.currentUser?.nickname, !name.isEmpty {
                                 return name
                             }
                             return authViewModel.currentUser == nil ? "正在加载资料" : "网易云用户"
                         }(),
-                        level: nil
+                        level: authViewModel.currentUser?.level
                     )
                 }
                 .buttonStyle(.plain)
