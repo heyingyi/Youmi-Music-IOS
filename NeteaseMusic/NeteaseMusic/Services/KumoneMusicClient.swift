@@ -1032,10 +1032,6 @@ final class KumoneMusicClient {
         return NSNull()
     }
 
-    private func dictList(_ value: Any?) -> [[String: Any]] {
-        (value as? [Any])?.compactMap { $0 as? [String: Any] } ?? []
-    }
-
     private func asDict(_ value: Any?) -> [String: Any] {
         value as? [String: Any] ?? [:]
     }
