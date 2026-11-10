@@ -289,27 +289,64 @@ final class KumoneMusicClient {
 
         case "user/playlist":
             CrashLogStore.shared.breadcrumb("kumone user/playlist uid=\(intQuery(query, "uid"))")
-            let json = try await request("/api/user/playlist", payload: [
-                "uid": intQuery(query, "uid"),
-                "limit": min(intQuery(query, "limit", 200), 200),
-                "offset": intQuery(query, "offset", 0),
-                "includeVideo": true
-            ], crypto: "weapi")
-            let slim = slimPlaylists(json)
-            let count = (slim["playlist"] as? [Any])?.count ?? -1
-            CrashLogStore.shared.breadcrumb("kumone user/playlist code=\(intValue(slim["code"])) count=\(count)")
-            return try pass(slim)
+            var merged: [[String: Any]] = []
+            var seen = Set<Int>()
+            var lastCode = 200
+            var offset = intQuery(query, "offset", 0)
+            let pageSize = min(max(intQuery(query, "limit", 100), 30), 100)
+            for page in 0..<8 {
+                let json = try await request("/api/user/playlist", payload: [
+                    "uid": intQuery(query, "uid"),
+                    "limit": pageSize,
+                    "offset": offset,
+                    "includeVideo": true
+                ], crypto: "weapi")
+                lastCode = intValue(json["code"], fallback: 200)
+                let items = slimPlaylistItems(json)
+                let more = (json["more"] as? Bool) ?? false
+                CrashLogStore.shared.breadcrumb("kumone user/playlist page=\(page) code=\(lastCode) count=\(items.count) more=\(more)")
+                for item in items {
+                    let id = intValue(item["id"])
+                    if id != 0, seen.insert(id).inserted {
+                        merged.append(item)
+                    }
+                }
+                offset += pageSize
+                if items.isEmpty { break }
+                if !more && items.count < pageSize { break }
+            }
+            CrashLogStore.shared.breadcrumb("kumone user/playlist total=\(merged.count)")
+            return try pass([
+                "code": lastCode,
+                "playlist": merged
+            ])
 
         case "playlist/sublist":
             CrashLogStore.shared.breadcrumb("kumone playlist/sublist")
-            let json = try await request("/api/playlist/sublist", payload: [
+            let payload: [String: Any] = [
                 "limit": min(intQuery(query, "limit", 100), 100),
-                "offset": intQuery(query, "offset", 0)
-            ], crypto: "weapi")
-            let items = slimPlaylistItems(json)
-            CrashLogStore.shared.breadcrumb("kumone playlist/sublist code=\(intValue(json["code"])) count=\(items.count)")
+                "offset": intQuery(query, "offset", 0),
+                "total": true
+            ]
+            let attempts: [(String, String)] = [
+                ("/api/playlist/collect/list", "weapi"),
+                ("/api/playlist/sublist", "weapi"),
+                ("/api/v1/playlist/sublist", "weapi"),
+                ("/api/playlist/favourite/list", "weapi"),
+                ("/api/playlist/sublist", "eapi")
+            ]
+            var json: [String: Any] = ["code": 404]
+            var items: [[String: Any]] = []
+            for (path, crypto) in attempts {
+                CrashLogStore.shared.breadcrumb("kumone playlist/sublist try \(path)")
+                guard let result = try? await request(path, payload: payload, crypto: crypto) else { continue }
+                json = result
+                items = slimPlaylistItems(json)
+                CrashLogStore.shared.breadcrumb("kumone playlist/sublist \(path) code=\(intValue(json["code"])) count=\(items.count)")
+                if !items.isEmpty { break }
+            }
             return try pass([
-                "code": intValue(json["code"], fallback: 200),
+                "code": items.isEmpty ? intValue(json["code"], fallback: 404) : 200,
                 "playlist": items,
                 "data": items,
                 "count": json["count"] ?? items.count
@@ -659,17 +696,38 @@ final class KumoneMusicClient {
 
         case "dj/program/sublist":
             CrashLogStore.shared.breadcrumb("kumone program/sublist begin")
-            let json = try await request("/api/program/sub/list", payload: [
-                "limit": min(intQuery(query, "limit", 30), 30),
+            let payload: [String: Any] = [
+                "limit": min(intQuery(query, "limit", 20), 20),
                 "offset": intQuery(query, "offset", 0),
                 "total": true
-            ], crypto: "weapi")
-            let programs = extractPrograms(json).map(slimProgram)
-            CrashLogStore.shared.breadcrumb("kumone program/sublist code=\(intValue(json["code"])) count=\(programs.count)")
+            ]
+            let attempts: [(String, String)] = [
+                ("/api/program/sub/list", "weapi"),
+                ("/api/djprogram/subscribed", "weapi"),
+                ("/api/dj/program/sub/list", "weapi")
+            ]
+            var programs: [[String: Any]] = []
+            var lastCode = 200
+            do {
+                for (path, crypto) in attempts {
+                    CrashLogStore.shared.breadcrumb("kumone program/sublist try \(path)")
+                    guard let json = try? await request(path, payload: payload, crypto: crypto) else {
+                        CrashLogStore.shared.breadcrumb("kumone program/sublist miss \(path)")
+                        continue
+                    }
+                    lastCode = intValue(json["code"], fallback: 200)
+                    programs = Array(extractPrograms(json).prefix(30).map(slimProgram))
+                    CrashLogStore.shared.breadcrumb("kumone program/sublist \(path) code=\(lastCode) count=\(programs.count)")
+                    if !programs.isEmpty { break }
+                }
+            } catch {
+                CrashLogStore.shared.breadcrumb("kumone program/sublist error=\(error.localizedDescription)")
+            }
+            CrashLogStore.shared.breadcrumb("kumone program/sublist done count=\(programs.count)")
             return try pass([
-                "code": intValue(json["code"], fallback: 200),
+                "code": programs.isEmpty ? lastCode : 200,
                 "programs": programs,
-                "count": json["count"] ?? programs.count
+                "count": programs.count
             ])
 
         case "dj/program/sub":
@@ -837,11 +895,107 @@ final class KumoneMusicClient {
         } else {
             data = try await weapi(uri, payload)
         }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            let snippet = String(data: data, encoding: .utf8)?.prefix(120) ?? ""
+        if data.count > 8_000 {
+            CrashLogStore.shared.breadcrumb("kumone \(uri) bytes=\(data.count)")
+        }
+        let limited = data.count > 4_000 ? limitJSONDepth(data, maxDepth: 4) : data
+        let parsed = autoreleasepool { () -> [String: Any]? in
+            (try? JSONSerialization.jsonObject(with: limited)) as? [String: Any]
+        }
+        guard let json = parsed else {
+            let snippet = String(data: limited, encoding: .utf8)?.prefix(80) ?? ""
             throw NetEaseDirectError.decoding(String(snippet))
         }
         return json
+    }
+
+    private func limitJSONDepth(_ data: Data, maxDepth: Int) -> Data {
+        data.withUnsafeBytes { raw -> Data in
+            let buf = raw.bindMemory(to: UInt8.self)
+            let n = buf.count
+            var out = Data()
+            out.reserveCapacity(min(n, 256_000))
+            var i = 0
+            var depth = 0
+            var inString = false
+            var escape = false
+            while i < n {
+                let b = buf[i]
+                if inString {
+                    out.append(b)
+                    i += 1
+                    if escape {
+                        escape = false
+                    } else if b == 0x5C {
+                        escape = true
+                    } else if b == 0x22 {
+                        inString = false
+                    }
+                    continue
+                }
+                if b == 0x22 {
+                    inString = true
+                    out.append(b)
+                    i += 1
+                    continue
+                }
+                if b == 0x7B || b == 0x5B {
+                    depth += 1
+                    if depth > maxDepth {
+                        if b == 0x7B {
+                            out.append(contentsOf: [0x7B, 0x7D])
+                        } else {
+                            out.append(contentsOf: [0x5B, 0x5D])
+                        }
+                        skipJSONContainer(buf, count: n, index: &i)
+                        depth -= 1
+                        continue
+                    }
+                    out.append(b)
+                    i += 1
+                    continue
+                }
+                if b == 0x7D || b == 0x5D {
+                    depth -= 1
+                }
+                out.append(b)
+                i += 1
+            }
+            return out
+        }
+    }
+
+    private func skipJSONContainer(_ buf: UnsafeBufferPointer<UInt8>, count n: Int, index i: inout Int) {
+        guard i < n else { return }
+        let open = buf[i]
+        let close: UInt8 = open == 0x7B ? 0x7D : 0x5D
+        var depth = 0
+        var inString = false
+        var escape = false
+        while i < n {
+            let b = buf[i]
+            i += 1
+            if inString {
+                if escape {
+                    escape = false
+                } else if b == 0x5C {
+                    escape = true
+                } else if b == 0x22 {
+                    inString = false
+                }
+                continue
+            }
+            if b == 0x22 {
+                inString = true
+                continue
+            }
+            if b == open {
+                depth += 1
+            } else if b == close {
+                depth -= 1
+                if depth == 0 { return }
+            }
+        }
     }
 
     /// POST `https://music.163.com/weapi<path>` — path is `/api/...` internally.
