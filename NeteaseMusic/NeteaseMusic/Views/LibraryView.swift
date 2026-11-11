@@ -666,6 +666,16 @@ struct CloudPlaylistsView: View {
     let playlists: [CloudPlaylist]
     @Environment(\.colorScheme) var colorScheme
     @EnvironmentObject var themeManager: ThemeManager
+    @State private var subscribed: [CloudPlaylist] = []
+
+    private var items: [CloudPlaylist] {
+        var seen = Set(playlists.map(\.id))
+        var out = playlists
+        for playlist in subscribed where seen.insert(playlist.id).inserted {
+            out.append(playlist)
+        }
+        return out
+    }
     
     var body: some View {
         ZStack {
@@ -673,7 +683,7 @@ struct CloudPlaylistsView: View {
                 .environmentObject(themeManager)
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(playlists) { playlist in
+                    ForEach(items) { playlist in
                         NavigationLink {
                             CloudPlaylistDetailView(playlist: playlist)
                         } label: {
@@ -687,6 +697,11 @@ struct CloudPlaylistsView: View {
         }
         .immersiveNavigationChrome()
         .navigationTitle("我的歌单")
+        .task {
+            CrashLogStore.shared.breadcrumb("playlists page extra begin")
+            subscribed = (try? await UserService.shared.getPlaylistSublist()) ?? []
+            CrashLogStore.shared.breadcrumb("playlists page extra=\(subscribed.count)")
+        }
     }
 }
 
