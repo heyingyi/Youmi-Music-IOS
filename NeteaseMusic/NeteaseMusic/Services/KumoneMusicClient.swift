@@ -660,15 +660,31 @@ final class KumoneMusicClient {
         case "dj/program/sublist":
             CrashLogStore.shared.breadcrumb("kumone program/sublist begin")
             var programs: [[String: Any]] = []
-            do {
-                let json = try await request("/api/program/sub/list", payload: [
-                    "limit": 10,
-                    "offset": intQuery(query, "offset", 0)
-                ], crypto: "weapi", maxBytes: 64_000)
-                programs = Array(extractPrograms(json).prefix(20).map(slimProgram))
-                CrashLogStore.shared.breadcrumb("kumone program/sublist code=\(intValue(json["code"])) count=\(programs.count)")
-            } catch {
-                CrashLogStore.shared.breadcrumb("kumone program/sublist error=\(error.localizedDescription)")
+            let payload: [String: Any] = [
+                "limit": 30,
+                "offset": intQuery(query, "offset", 0),
+                "total": true
+            ]
+            let attempts: [(String, String)] = [
+                ("/api/djprogram/subscribed", "weapi"),
+                ("/api/nuser/program/sub/list", "weapi"),
+                ("/api/voice/liked/get", "weapi"),
+                ("/api/program/sub/list", "eapi"),
+                ("/api/program/sub/list", "weapi")
+            ]
+            for (path, crypto) in attempts {
+                CrashLogStore.shared.breadcrumb("kumone program/sublist try \(path)")
+                do {
+                    let json = try await request(path, payload: payload, crypto: crypto, maxBytes: 80_000)
+                    let extracted = extractPrograms(json)
+                    CrashLogStore.shared.breadcrumb("kumone program/sublist \(path) code=\(intValue(json["code"])) count=\(extracted.count) keys=\(Array(json.keys).sorted().joined(separator: ","))")
+                    if !extracted.isEmpty {
+                        programs = Array(extracted.prefix(40).map(slimProgram))
+                        break
+                    }
+                } catch {
+                    CrashLogStore.shared.breadcrumb("kumone program/sublist miss \(path) \(error.localizedDescription)")
+                }
             }
             CrashLogStore.shared.breadcrumb("kumone program/sublist done count=\(programs.count)")
             return try pass([
@@ -843,6 +859,10 @@ final class KumoneMusicClient {
             data = try await weapi(uri, payload, maxBytes: maxBytes)
         }
         CrashLogStore.shared.breadcrumb("kumone \(uri) bytes=\(data.count)")
+        if data.count < 200 {
+            let snippet = String(data: data, encoding: .utf8) ?? ""
+            CrashLogStore.shared.breadcrumb("kumone \(uri) body=\(snippet.prefix(120))")
+        }
         if data.count > 12_000 {
             let scanned = scanJSONObject(data)
             CrashLogStore.shared.breadcrumb("kumone \(uri) scanned keys=\(scanned.count)")
@@ -1523,32 +1543,31 @@ final class KumoneMusicClient {
         return payload
     }
 
+    private func asStringKeyedDict(_ value: Any) -> [String: Any]? {
+        if let dict = value as? [String: Any] { return dict }
+        guard let dict = value as? NSDictionary else { return nil }
+        var out: [String: Any] = [:]
+        dict.forEach { key, val in
+            if let k = key as? String { out[k] = val }
+        }
+        return out
+    }
+
     private func dictList(_ value: Any?) -> [[String: Any]] {
+        guard let value, !(value is NSNull) else { return [] }
         if let items = value as? [[String: Any]] { return items }
         if let items = value as? [Any] {
-            return items.compactMap { item -> [String: Any]? in
-                if let dict = item as? [String: Any] { return dict }
-                if let dict = item as? NSDictionary {
-                    return dict as? [String: Any] ?? Dictionary(uniqueKeysWithValues: dict.compactMap { key, value in
-                        (key as? String).map { ($0, value) }
-                    })
-                }
-                return nil
-            }
+            return items.compactMap(asStringKeyedDict)
         }
         if let array = value as? NSArray {
-            return dictList(array as? [Any] ?? array.map { $0 as Any })
-        }
-        if let nested = value as? [String: Any] {
-            for key in ["programs", "djPrograms", "djRadios", "records", "list", "data"] {
-                let inner = dictList(nested[key])
-                if !inner.isEmpty { return inner }
+            var out: [[String: Any]] = []
+            out.reserveCapacity(array.count)
+            for i in 0..<array.count {
+                if let dict = asStringKeyedDict(array[i]) {
+                    out.append(dict)
+                }
             }
-        }
-        if let nested = value as? NSDictionary {
-            return dictList(nested as? [String: Any] ?? Dictionary(uniqueKeysWithValues: nested.compactMap { key, value in
-                (key as? String).map { ($0, value) }
-            }))
+            return out
         }
         return []
     }
@@ -1558,7 +1577,7 @@ final class KumoneMusicClient {
             let items = dictList(json[key])
             if !items.isEmpty { return items }
         }
-        return dictList(json)
+        return []
     }
 
     private func unwrapProgramItem(_ item: [String: Any]) -> [String: Any] {

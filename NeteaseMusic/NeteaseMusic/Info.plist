@@ -19,9 +19,9 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleShortVersionString</key>
-		<string>3.2</string>
+		<string>3.3</string>
 	<key>CFBundleVersion</key>
-		<string>24</string>
+		<string>25</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
