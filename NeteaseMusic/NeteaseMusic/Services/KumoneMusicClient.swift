@@ -142,14 +142,51 @@ final class KumoneMusicClient {
 
     func songPlayURL(id: Int, level: String) async throws -> SongPlayURL? {
         let info = try await songURLInfo(ids: [id], level: level)
-        return info[id]
+        if let play = pickPlayURL(info, id: id) {
+            CrashLogStore.shared.breadcrumb("kumone playURL id=\(id) trial=\(play.isTrial) ms=\(play.durationMS)")
+            return play
+        }
+        let mp3 = (try? await songURLInfo(ids: [id], level: "standard", encodeType: "mp3")) ?? [:]
+        if let play = pickPlayURL(mp3, id: id) {
+            CrashLogStore.shared.breadcrumb("kumone playURL mp3 id=\(id) trial=\(play.isTrial)")
+            return play
+        }
+        if let fallback = try? await songPlayURLLegacy(id: id) {
+            CrashLogStore.shared.breadcrumb("kumone playURL legacy id=\(id) trial=\(fallback.isTrial)")
+            return fallback
+        }
+        CrashLogStore.shared.breadcrumb("kumone playURL miss id=\(id) n=\(info.count)")
+        return nil
     }
 
-    func songURLInfo(ids: [Int], level: String) async throws -> [Int: SongPlayURL] {
+    private func pickPlayURL(_ info: [Int: SongPlayURL], id: Int) -> SongPlayURL? {
+        if let play = info[id], !play.url.isEmpty { return play }
+        return info.values.first(where: { !$0.url.isEmpty })
+    }
+
+    private func songPlayURLLegacy(id: Int) async throws -> SongPlayURL? {
+        let json = try await request("/api/song/enhance/player/url", payload: [
+            "ids": "[" + String(id) + "]",
+            "br": 320000
+        ], crypto: "weapi")
+        let data = json["data"] as? [[String: Any]] ?? dictList(json["data"])
+        let item = data.first { intValue($0["id"]) == id } ?? data.first
+        guard let item, let url = item["url"] as? String, !url.isEmpty else { return nil }
+        let durationMS = intValue(item["time"])
+        return SongPlayURL(
+            url: url,
+            durationMS: durationMS,
+            fee: intValue(item["fee"]),
+            payed: intValue(item["payed"]),
+            isTrial: durationMS > 0 && durationMS <= 35000
+        )
+    }
+
+    func songURLInfo(ids: [Int], level: String, encodeType: String = "flac") async throws -> [Int: SongPlayURL] {
         var payload: [String: Any] = [
             "ids": "[" + ids.map(String.init).joined(separator: ",") + "]",
             "level": level,
-            "encodeType": "flac"
+            "encodeType": encodeType
         ]
         if level == "sky" { payload["immerseType"] = "c51" }
         let json = try await request("/api/song/enhance/player/url/v1", payload: payload, crypto: "eapi")
@@ -646,12 +683,13 @@ final class KumoneMusicClient {
             CrashLogStore.shared.breadcrumb("kumone dj/program rid=\(intQuery(query, "rid"))")
             let json = try await request("/api/dj/program/byradio", payload: [
                 "radioId": intQuery(query, "rid"),
-                "limit": min(intQuery(query, "limit", 100), 100),
+                "limit": min(intQuery(query, "limit", 30), 30),
                 "offset": intQuery(query, "offset", 0),
                 "asc": false
-            ], crypto: "weapi")
+            ], crypto: "weapi", maxBytes: 180_000)
             let programs = extractPrograms(json).map(slimProgram)
-            CrashLogStore.shared.breadcrumb("kumone dj/program count=\(programs.count)")
+            let withSong = programs.filter { intValue(($0["mainSong"] as? [String: Any])?["id"]) != 0 }.count
+            CrashLogStore.shared.breadcrumb("kumone dj/program count=\(programs.count) song=\(withSong)")
             return try pass([
                 "code": intValue(json["code"], fallback: 200),
                 "programs": programs
@@ -666,16 +704,16 @@ final class KumoneMusicClient {
                 "total": true
             ]
             let attempts: [(String, String)] = [
-                ("/api/djprogram/subscribed", "weapi"),
-                ("/api/nuser/program/sub/list", "weapi"),
+                ("/api/djradio/program/sub/list", "weapi"),
+                ("/api/djradio/program/subed/list", "weapi"),
                 ("/api/voice/liked/get", "weapi"),
-                ("/api/program/sub/list", "eapi"),
+                ("/api/djprogram/subscribed", "weapi"),
                 ("/api/program/sub/list", "weapi")
             ]
             for (path, crypto) in attempts {
                 CrashLogStore.shared.breadcrumb("kumone program/sublist try \(path)")
                 do {
-                    let json = try await request(path, payload: payload, crypto: crypto, maxBytes: 80_000)
+                    let json = try await requestTimed(path, payload: payload, crypto: crypto, maxBytes: 80_000)
                     let extracted = extractPrograms(json)
                     CrashLogStore.shared.breadcrumb("kumone program/sublist \(path) code=\(intValue(json["code"])) count=\(extracted.count) keys=\(Array(json.keys).sorted().joined(separator: ","))")
                     if !extracted.isEmpty {
@@ -697,19 +735,26 @@ final class KumoneMusicClient {
             let id = intQuery(query, "id")
             let sub = intQuery(query, "t", 1) == 1
             let action = sub ? "sub" : "unsub"
+            CrashLogStore.shared.breadcrumb("kumone program/sub id=\(id) t=\(action)")
             let attempts: [(String, [String: Any])] = [
                 ("/api/djprogram/\(action)", ["id": id]),
-                ("/api/program/\(action)", ["id": id]),
-                ("/api/djprogram/sub", ["id": id, "t": sub ? 1 : 0]),
-                ("/api/program/sub", ["id": id, "t": sub ? 1 : 0]),
-                ("/api/dj/program/\(action)", ["id": id]),
-                ("/api/resource/like", ["threadId": "A_DJ_1_\(id)", "t": sub ? 1 : 0])
+                ("/api/djradio/program/\(action)", ["id": id]),
+                ("/api/djprogram/\(action)", ["programId": id]),
+                ("/api/resource/like", [
+                    "threadId": "A_DJ_1_\(id)",
+                    "t": sub ? 1 : 0
+                ])
             ]
             var json: [String: Any] = ["code": 400]
             for (path, payload) in attempts {
-                guard let result = try? await request(path, payload: payload, crypto: "weapi") else { continue }
-                json = result
-                if isSuccessCode(json["code"]) { break }
+                do {
+                    let result = try await requestTimed(path, payload: payload, crypto: "weapi")
+                    CrashLogStore.shared.breadcrumb("kumone program/sub \(path) code=\(intValue(result["code"]))")
+                    json = result
+                    if isSuccessCode(result["code"]) { break }
+                } catch {
+                    CrashLogStore.shared.breadcrumb("kumone program/sub miss \(path) \(error.localizedDescription)")
+                }
             }
             return try pass(json)
 
@@ -851,6 +896,21 @@ final class KumoneMusicClient {
 
     // MARK: - kumone weapi / eapi
 
+    private func requestTimed(_ uri: String, payload: [String: Any], crypto: String, maxBytes: Int = 180_000) async throws -> [String: Any] {
+        try await withThrowingTaskGroup(of: [String: Any].self) { group in
+            group.addTask {
+                try await self.request(uri, payload: payload, crypto: crypto, maxBytes: maxBytes)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: 6_000_000_000)
+                throw NetEaseDirectError.unknown("timeout")
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+
     private func request(_ uri: String, payload: [String: Any], crypto: String, maxBytes: Int = 180_000) async throws -> [String: Any] {
         let data: Data
         if crypto == "eapi" {
@@ -978,7 +1038,7 @@ final class KumoneMusicClient {
         if let more = firstBool(in: text, key: "more") {
             out["more"] = more
         }
-        let programs = extractShallowObjects(from: text, keys: ["programs", "djPrograms", "data", "records", "list"])
+        let programs = extractShallowObjects(from: text, keys: ["programs", "djPrograms", "data", "records", "list", "voices"])
         if !programs.isEmpty {
             out["programs"] = programs
             out["data"] = programs
@@ -1111,6 +1171,22 @@ final class KumoneMusicClient {
                 continue
             }
             if ch == "{" || ch == "[" {
+                if ch == "{", depth == 1, expectValue, key == "mainSong" || key == "song" {
+                    let (nested, next) = parseShallowObject(text, from: text.index(before: i))
+                    i = next
+                    let nestedId = intValue(nested["id"])
+                    if nestedId != 0 {
+                        object["mainTrackId"] = nestedId
+                        object["mainSongId"] = nestedId
+                    }
+                    if let nestedName = nested["name"] as? String, !nestedName.isEmpty {
+                        object["mainSongName"] = nestedName
+                    }
+                    key = ""
+                    value = ""
+                    expectValue = false
+                    continue
+                }
                 depth += 1
                 expectValue = false
                 continue
@@ -1220,30 +1296,16 @@ final class KumoneMusicClient {
     }
 
     private func perform(_ request: URLRequest, maxBytes: Int = 180_000) async throws -> Data {
-        let (bytes, response) = try await session.bytes(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw NetEaseDirectError.network }
         absorbSetCookies(from: http, url: request.url!)
         harvestCookieStorage()
         guard (200..<300).contains(http.statusCode) else {
             throw NetEaseDirectError.httpStatus(http.statusCode, "")
         }
-        var data = Data()
-        data.reserveCapacity(min(maxBytes, 64_000))
-        var truncated = false
-        do {
-            for try await byte in bytes {
-                data.append(byte)
-                if data.count >= maxBytes {
-                    truncated = true
-                    bytes.task.cancel()
-                    break
-                }
-            }
-        } catch {
-            if !truncated { throw error }
-        }
-        if truncated {
-            CrashLogStore.shared.breadcrumb("kumone truncated \(maxBytes)")
+        if data.count > maxBytes {
+            CrashLogStore.shared.breadcrumb("kumone truncated \(maxBytes)/\(data.count)")
+            return data.prefix(maxBytes)
         }
         return data
     }
@@ -1494,18 +1556,32 @@ final class KumoneMusicClient {
     private func slimProgram(_ item: [String: Any]) -> [String: Any] {
         let radio = item["radio"] as? [String: Any]
         let song = (item["mainSong"] as? [String: Any]) ?? (item["song"] as? [String: Any])
+        let songId = intValue(song?["id"])
+            != 0 ? intValue(song?["id"])
+            : intValue(item["mainTrackId"]) != 0 ? intValue(item["mainTrackId"])
+            : intValue(item["mainSongId"]) != 0 ? intValue(item["mainSongId"])
+            : intValue(item["trackId"]) != 0 ? intValue(item["trackId"])
+            : intValue(item["songId"])
+        let songName = (song?["name"] as? String)
+            ?? (item["mainSongName"] as? String)
+            ?? (item["name"] as? String)
+            ?? ""
+        let duration = intValue(item["duration"]) != 0
+            ? intValue(item["duration"])
+            : intValue(song?["duration"]) != 0 ? intValue(song?["duration"]) : intValue(song?["dt"])
         return [
-            "id": item["id"] ?? item["programId"] ?? 0,
+            "id": intValue(item["id"]) != 0 ? intValue(item["id"]) : intValue(item["programId"]),
             "name": item["name"] ?? "",
             "coverUrl": item["coverUrl"] ?? item["picUrl"] ?? item["coverImgUrl"] ?? "",
-            "duration": item["duration"] ?? 0,
+            "duration": duration,
             "listenerCount": item["listenerCount"] ?? 0,
             "createTime": item["createTime"] ?? 0,
             "description": item["description"] ?? "",
+            "mainTrackId": songId,
             "mainSong": [
-                "id": song?["id"] ?? 0,
-                "name": song?["name"] ?? "",
-                "duration": song?["duration"] ?? song?["dt"] ?? 0
+                "id": songId,
+                "name": songName,
+                "duration": duration
             ],
             "radio": [
                 "id": radio?["id"] ?? 0,
@@ -1601,6 +1677,14 @@ final class KumoneMusicClient {
                 .first { $0 != 0 } ?? 0
             if fallback != 0 { merged["id"] = fallback }
         }
+        if intValue(merged["mainTrackId"]) == 0 {
+            let songId = intValue((merged["mainSong"] as? [String: Any])?["id"])
+                != 0 ? intValue((merged["mainSong"] as? [String: Any])?["id"])
+                : intValue(item["mainTrackId"]) != 0 ? intValue(item["mainTrackId"])
+                : intValue(item["mainSongId"]) != 0 ? intValue(item["mainSongId"])
+                : intValue(item["trackId"])
+            if songId != 0 { merged["mainTrackId"] = songId }
+        }
         if merged["coverUrl"] == nil {
             merged["coverUrl"] = item["coverUrl"]
                 ?? item["picUrl"]
@@ -1613,7 +1697,7 @@ final class KumoneMusicClient {
     }
 
     private func extractPrograms(_ json: [String: Any]) -> [[String: Any]] {
-        extractList(json, keys: ["programs", "djPrograms", "data", "records", "list"])
+        extractList(json, keys: ["programs", "djPrograms", "data", "records", "list", "voices"])
             .map(unwrapProgramItem)
             .filter { intValue($0["id"]) != 0 || intValue($0["programId"]) != 0 }
     }

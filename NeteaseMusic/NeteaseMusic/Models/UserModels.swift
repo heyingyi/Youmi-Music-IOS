@@ -565,11 +565,13 @@ struct CloudDJProgram: Decodable, Identifiable {
     let description: String?
     let mainSong: CloudDJMainSong?
     let radio: CloudDJRadioBrief?
+    let mainTrackId: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name, coverUrl, blurCoverUrl, picUrl, coverImgUrl, img80x80
         case duration, listenerCount, createTime, description
         case mainSong, song, radio, serialNum, program, programId, resource
+        case mainTrackId, mainSongId, songId, trackId
     }
 
     init(from decoder: Decoder) throws {
@@ -599,6 +601,11 @@ struct CloudDJProgram: Decodable, Identifiable {
             ?? (try? root.decodeIfPresent(CloudDJMainSong.self, forKey: .mainSong))
         radio = (try? c.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio))
             ?? (try? root.decodeIfPresent(CloudDJRadioBrief.self, forKey: .radio))
+        mainTrackId = JSONFlex.int(c, .mainTrackId)
+            ?? JSONFlex.int(c, .mainSongId)
+            ?? JSONFlex.int(c, .songId)
+            ?? JSONFlex.int(root, .mainTrackId)
+            ?? JSONFlex.int(root, .mainSongId)
     }
 
     private func httpsCover(_ raw: String?) -> String? {
@@ -623,7 +630,8 @@ struct CloudDJProgram: Decodable, Identifiable {
 
     func toTrack(fallbackCover: String? = nil) -> Track {
         let song = mainSong
-        let trackId = song?.id ?? id
+        let songId = (song?.id ?? 0) != 0 ? (song?.id ?? 0) : (mainTrackId ?? 0)
+        let trackId = songId != 0 ? songId : id
         let cover = artworkUrl ?? httpsCover(fallbackCover)
         let artists = song?.artistList?.map { Artist(id: $0.id, name: $0.name) }
             ?? (radio?.name.map { [Artist(id: radio?.id ?? 0, name: $0)] })

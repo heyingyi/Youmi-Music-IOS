@@ -1765,7 +1765,11 @@ class AudioPlayer: ObservableObject {
         #endif
 
         if let play = try await KumoneMusicClient.shared.songPlayURL(id: id, level: quality),
-           !play.url.isEmpty, !play.isTrial {
+           !play.url.isEmpty {
+            let clipTrial = play.isTrial && play.durationMS > 0 && play.durationMS <= 35000
+            if clipTrial {
+                throw AudioPlayerError.noAvailableSource
+            }
             await MainActor.run {
                 self.actualQuality = quality
             }
@@ -1832,7 +1836,7 @@ class AudioPlayer: ObservableObject {
 
                 if Task.isCancelled { return }
 
-                if let play, !play.url.isEmpty, !play.isTrial {
+                if let play, !play.url.isEmpty, !(play.isTrial && play.durationMS > 0 && play.durationMS <= 35000) {
                     await MainActor.run {
                         self.preloadedURLs[track.id] = play.url
                     }

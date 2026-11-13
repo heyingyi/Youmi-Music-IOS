@@ -165,7 +165,7 @@ final class SongDownloadService: ObservableObject {
 
             var audioUrlString: String?
             if let play = try await KumoneMusicClient.shared.songPlayURL(id: track.id, level: quality),
-               !play.url.isEmpty, !play.isTrial {
+               !play.url.isEmpty, !(play.isTrial && play.durationMS > 0 && play.durationMS <= 35000) {
                 audioUrlString = play.url
             }
             if audioUrlString == nil || audioUrlString?.isEmpty == true {
