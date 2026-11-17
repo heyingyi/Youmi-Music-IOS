@@ -680,44 +680,81 @@ final class KumoneMusicClient {
             ])
 
         case "dj/program":
-            CrashLogStore.shared.breadcrumb("kumone dj/program rid=\(intQuery(query, "rid"))")
-            let json = try await request("/api/dj/program/byradio", payload: [
-                "radioId": intQuery(query, "rid"),
-                "limit": min(intQuery(query, "limit", 30), 30),
-                "offset": intQuery(query, "offset", 0),
-                "asc": false
-            ], crypto: "weapi", maxBytes: 180_000)
-            let programs = extractPrograms(json).map(slimProgram)
+            let rid = intQuery(query, "rid")
+            CrashLogStore.shared.breadcrumb("kumone dj/program rid=\(rid)")
+            let pageSize = 30
+            var offset = intQuery(query, "offset", 0)
+            var programs: [[String: Any]] = []
+            var seen = Set<Int>()
+            for _ in 0..<20 {
+                let json = try await request("/api/dj/program/byradio", payload: [
+                    "radioId": rid,
+                    "limit": pageSize,
+                    "offset": offset,
+                    "asc": false
+                ], crypto: "weapi", maxBytes: 180_000)
+                let page = extractPrograms(json).map(slimProgram)
+                var added = 0
+                for item in page {
+                    let id = intValue(item["id"])
+                    if id == 0 || !seen.insert(id).inserted { continue }
+                    programs.append(item)
+                    added += 1
+                }
+                let more = (json["more"] as? Bool) == true
+                CrashLogStore.shared.breadcrumb("kumone dj/program page offset=\(offset) add=\(added) total=\(programs.count) more=\(more)")
+                if added == 0 || (!more && page.count < pageSize) || page.count < pageSize {
+                    break
+                }
+                offset += pageSize
+            }
             let withSong = programs.filter { intValue(($0["mainSong"] as? [String: Any])?["id"]) != 0 }.count
             CrashLogStore.shared.breadcrumb("kumone dj/program count=\(programs.count) song=\(withSong)")
             return try pass([
-                "code": intValue(json["code"], fallback: 200),
-                "programs": programs
+                "code": 200,
+                "programs": programs,
+                "count": programs.count
             ])
 
         case "dj/program/sublist":
             CrashLogStore.shared.breadcrumb("kumone program/sublist begin")
             var programs: [[String: Any]] = []
-            let payload: [String: Any] = [
-                "limit": 30,
-                "offset": intQuery(query, "offset", 0),
-                "total": true
-            ]
             let attempts: [(String, String)] = [
-                ("/api/djradio/program/sub/list", "weapi"),
-                ("/api/djradio/program/subed/list", "weapi"),
-                ("/api/voice/liked/get", "weapi"),
-                ("/api/djprogram/subscribed", "weapi"),
-                ("/api/program/sub/list", "weapi")
+                ("/api/djprogram/getSubed", "weapi"),
+                ("/api/djprogram/getSubed", "eapi"),
+                ("/api/v1/dj/program/getSubed", "weapi"),
+                ("/api/djprogram/subscribed", "weapi")
             ]
             for (path, crypto) in attempts {
-                CrashLogStore.shared.breadcrumb("kumone program/sublist try \(path)")
+                CrashLogStore.shared.breadcrumb("kumone program/sublist try \(path) \(crypto)")
                 do {
-                    let json = try await requestTimed(path, payload: payload, crypto: crypto, maxBytes: 80_000)
-                    let extracted = extractPrograms(json)
-                    CrashLogStore.shared.breadcrumb("kumone program/sublist \(path) code=\(intValue(json["code"])) count=\(extracted.count) keys=\(Array(json.keys).sorted().joined(separator: ","))")
-                    if !extracted.isEmpty {
-                        programs = Array(extracted.prefix(40).map(slimProgram))
+                    var offset = 0
+                    var collected: [[String: Any]] = []
+                    var seen = Set<Int>()
+                    for _ in 0..<10 {
+                        let json = try await requestTimed(path, payload: [
+                            "limit": 30,
+                            "offset": offset,
+                            "total": true
+                        ], crypto: crypto, maxBytes: 120_000)
+                        let extracted = extractPrograms(json)
+                        CrashLogStore.shared.breadcrumb("kumone program/sublist \(path) code=\(intValue(json["code"])) count=\(extracted.count) keys=\(Array(json.keys).sorted().joined(separator: ","))")
+                        if intValue(json["code"]) == 404 { break }
+                        var added = 0
+                        for item in extracted.map(slimProgram) {
+                            let id = intValue(item["id"])
+                            if id == 0 || !seen.insert(id).inserted { continue }
+                            collected.append(item)
+                            added += 1
+                        }
+                        let more = (json["more"] as? Bool) == true
+                        if added == 0 || (!more && extracted.count < 30) || extracted.count < 30 {
+                            break
+                        }
+                        offset += 30
+                    }
+                    if !collected.isEmpty {
+                        programs = collected
                         break
                     }
                 } catch {
@@ -736,20 +773,17 @@ final class KumoneMusicClient {
             let sub = intQuery(query, "t", 1) == 1
             let action = sub ? "sub" : "unsub"
             CrashLogStore.shared.breadcrumb("kumone program/sub id=\(id) t=\(action)")
-            let attempts: [(String, [String: Any])] = [
-                ("/api/djprogram/\(action)", ["id": id]),
-                ("/api/djradio/program/\(action)", ["id": id]),
-                ("/api/djprogram/\(action)", ["programId": id]),
-                ("/api/resource/like", [
-                    "threadId": "A_DJ_1_\(id)",
-                    "t": sub ? 1 : 0
-                ])
+            let attempts: [(String, [String: Any], String)] = [
+                ("/api/djprogram/\(action)", ["id": id], "weapi"),
+                ("/api/djprogram/\(action)", ["id": id], "eapi"),
+                ("/api/djprogram/\(action)", ["programId": id], "weapi"),
+                ("/api/resource/like", ["threadId": "A_DJ_1_\(id)", "likeType": 1, "t": sub ? 1 : 0], "weapi")
             ]
             var json: [String: Any] = ["code": 400]
-            for (path, payload) in attempts {
+            for (path, payload, crypto) in attempts {
                 do {
-                    let result = try await requestTimed(path, payload: payload, crypto: "weapi")
-                    CrashLogStore.shared.breadcrumb("kumone program/sub \(path) code=\(intValue(result["code"]))")
+                    let result = try await requestTimed(path, payload: payload, crypto: crypto)
+                    CrashLogStore.shared.breadcrumb("kumone program/sub \(path) \(crypto) code=\(intValue(result["code"]))")
                     json = result
                     if isSuccessCode(result["code"]) { break }
                 } catch {
@@ -761,17 +795,23 @@ final class KumoneMusicClient {
         case "dj/program/add":
             let radioId = intQuery(query, "radioId")
             let programId = intQuery(query, "programId")
+            CrashLogStore.shared.breadcrumb("kumone program/add radio=\(radioId) program=\(programId)")
             let attempts: [(String, [String: Any])] = [
-                ("/api/dj/program/add", ["djId": radioId, "programId": programId]),
-                ("/api/djradio/program/add", ["djId": radioId, "programId": programId]),
+                ("/api/dj/program/add", ["radioId": radioId, "programId": programId]),
+                ("/api/dj/program/add", ["id": radioId, "programId": programId]),
                 ("/api/djradio/program/add", ["radioId": radioId, "programId": programId]),
-                ("/api/dj/program/add", ["id": radioId, "programId": programId])
+                ("/api/djradio/program/add", ["djId": radioId, "programId": programId])
             ]
             var json: [String: Any] = ["code": 400]
             for (path, payload) in attempts {
-                guard let result = try? await request(path, payload: payload, crypto: "weapi") else { continue }
-                json = result
-                if isSuccessCode(json["code"]) { break }
+                do {
+                    let result = try await requestTimed(path, payload: payload, crypto: "weapi")
+                    CrashLogStore.shared.breadcrumb("kumone program/add \(path) code=\(intValue(result["code"]))")
+                    json = result
+                    if isSuccessCode(result["code"]) { break }
+                } catch {
+                    CrashLogStore.shared.breadcrumb("kumone program/add miss \(path) \(error.localizedDescription)")
+                }
             }
             return try pass(json)
 
